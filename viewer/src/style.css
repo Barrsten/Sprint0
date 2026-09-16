@@ -1,0 +1,160 @@
+:root {
+  font-family: Inter, Arial, sans-serif;
+  color: #dbe5ef;
+  background: #101721;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  padding: 0 24px;
+  border-bottom: 1px solid #2a3746;
+  background: #141e2a;
+}
+header strong {
+  letter-spacing: 3px;
+  font-size: 23px;
+}
+header strong span {
+  color: #75e0ba;
+}
+header > span,
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #8da4ba;
+}
+.file {
+  margin-left: auto;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid #425467;
+  padding: 9px 12px;
+  border-radius: 5px;
+}
+.file input {
+  display: none;
+}
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  height: calc(100vh - 64px);
+}
+#viewport {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+aside {
+  overflow: auto;
+  padding: 24px;
+  background: #16212e;
+  border-left: 1px solid #2a3746;
+}
+h1 {
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 10px 0 16px;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+button {
+  cursor: pointer;
+  background: #253749;
+  border: 1px solid #3c5368;
+  color: #eef6ff;
+  border-radius: 4px;
+  padding: 8px 11px;
+}
+button:hover {
+  background: #35506a;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+pre {
+  font:
+    12px/1.6 ui-monospace,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#status {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  right: 20px;
+  font-size: 13px;
+  background: #111d2bdc;
+  padding: 12px 16px;
+  border-left: 3px solid #75e0ba;
+  pointer-events: none;
+}
+#metrics {
+  position: absolute;
+  bottom: 50px;
+  left: 20px;
+  font:
+    12px/1.7 ui-monospace,
+    monospace;
+  background: #111d2be8;
+  border: 1px solid #30455a;
+  border-radius: 5px;
+  padding: 12px 15px;
+  white-space: pre;
+  pointer-events: none;
+}
+.hint {
+  position: absolute;
+  bottom: 18px;
+  left: 20px;
+  color: #96a9bb;
+  font-size: 11px;
+}
+#model-summary,
+#benchmark-status {
+  font-size: 12px;
+  color: #a4b8ca;
+  line-height: 1.6;
+}
+hr {
+  border: 0;
+  border-top: 1px solid #334454;
+  margin: 24px 0;
+}
+summary {
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 18px;
+}
+@media (max-width: 760px) {
+  main {
+    grid-template-columns: minmax(0, 1fr) 270px;
+  }
+  aside {
+    padding: 15px;
+  }
+  header > span {
+    display: none;
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "path": "/workspace/scratch/6496835d542c/kontur2/fixtures/small.ifc",
+    "schema": "IFC4"
+  },
+  "elements": {
+    "1vkCu6jU11YR$$P9qTox9F": {
+      "guid": "1vkCu6jU11YR$$P9qTox9F",
+      "expressId": 20,
+      "ifcType": "IfcBeam",
+      "name": "Балка 0",
+      "description": null,
+      "tag": "0",
+      "objectType": null,
+      "propertySets": {
+        "Pset_Контур": {
+          "Марка": "Сталь С245",
+          "id": 34
+        }
+      }
+    },
+    "3PWmlx7F1FRv4_7LwSweyf": {
+      "guid": "3PWmlx7F1FRv4_7LwSweyf",
+      "expressId": 24,
+      "ifcType": "IfcBeam",
+      "name": "Балка 1",
+      "description": null,
+      "tag": "1",
+      "objectType": null,
+      "propertySets": {
+        "Pset_Контур": {
+          "Марка": "Сталь С245",
+          "id": 34
+        }
+      }
+    },
+    "1ki9wzTvL9AQJ7xYycz5Y9": {
+      "guid": "1ki9wzTvL9AQJ7xYycz5Y9",
+      "expressId": 28,
+      "ifcType": "IfcBeam",
+      "name": "Балка 2",
+      "description": null,
+      "tag": "2",
+      "objectType": null,
+      "propertySets": {
+        "Pset_Контур": {
+          "Марка": "Сталь С245",
+          "id": 34
+        }
+      }
+    },
+    "3L_n2OzB19a8XFgyVtQXIW": {
+      "guid": "3L_n2OzB19a8XFgyVtQXIW",
+      "expressId": 32,
+      "ifcType": "IfcBeam",
+      "name": "Балка 3",
+      "description": null,
+      "tag": "3",
+      "objectType": null,
+      "propertySets": {
+        "Pset_Контур": {
+          "Марка": "Сталь С245",
+          "id": 34
+        }
+      }
+    },
+    "0gkzWqzX15LRvv00d$hQSE": {
+      "guid": "0gkzWqzX15LRvv00d$hQSE",
+      "expressId": 41,
+      "ifcType": "IfcElementAssembly",
+      "name": "Own geometry",
+      "description": null,
+      "tag": null,
+      "objectType": null,
+      "propertySets": {}
+    }
+  }
+}

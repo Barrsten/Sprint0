@@ -1,0 +1,19 @@
+{
+  "name": "kontur2-sprint0-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "draco": "node scripts/draco.mjs",
+    "test:js": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "4.2.1",
+    "@gltf-transform/extensions": "4.2.1",
+    "@gltf-transform/functions": "4.2.1",
+    "draco3dgltf": "1.5.7",
+    "gltf-validator": "2.0.0-dev.3.10"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}

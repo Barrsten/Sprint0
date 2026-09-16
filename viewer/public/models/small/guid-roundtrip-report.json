@@ -1,0 +1,59 @@
+{
+  "status": "PASS",
+  "ifcVisibleElements": 5,
+  "glbSelectableElements": 5,
+  "mappedGuids": 5,
+  "uniqueGuids": 5,
+  "missingGuids": [],
+  "extraGuids": [],
+  "duplicateGuids": [],
+  "instanceOrderingErrors": [],
+  "sampleCount": 5,
+  "sample": [
+    {
+      "guid": "0gkzWqzX15LRvv00d$hQSE",
+      "node": 1,
+      "mesh": 0,
+      "instanceIndex": 4,
+      "expressId": 41,
+      "ifcType": "IfcElementAssembly",
+      "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c"
+    },
+    {
+      "guid": "3L_n2OzB19a8XFgyVtQXIW",
+      "node": 1,
+      "mesh": 0,
+      "instanceIndex": 3,
+      "expressId": 32,
+      "ifcType": "IfcBeam",
+      "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c"
+    },
+    {
+      "guid": "3PWmlx7F1FRv4_7LwSweyf",
+      "node": 1,
+      "mesh": 0,
+      "instanceIndex": 1,
+      "expressId": 24,
+      "ifcType": "IfcBeam",
+      "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c"
+    },
+    {
+      "guid": "1vkCu6jU11YR$$P9qTox9F",
+      "node": 1,
+      "mesh": 0,
+      "instanceIndex": 0,
+      "expressId": 20,
+      "ifcType": "IfcBeam",
+      "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c"
+    },
+    {
+      "guid": "1ki9wzTvL9AQJ7xYycz5Y9",
+      "node": 1,
+      "mesh": 0,
+      "instanceIndex": 2,
+      "expressId": 28,
+      "ifcType": "IfcBeam",
+      "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c"
+    }
+  ]
+}

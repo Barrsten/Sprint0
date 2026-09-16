@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Контур 2 · IFC Lab</title>
+  </head>
+  <body>
+    <header>
+      <strong>КОНТУР <span>2</span></strong
+      ><span>SPRINT 0 / IFC LAB</span
+      ><label class="file"
+        >Открыть GLB + JSON<input
+          id="files"
+          type="file"
+          multiple
+          accept=".glb,.json"
+      /></label>
+    </header>
+    <main>
+      <section id="viewport">
+        <div id="status" role="status">
+          Перетащите GLB и metadata.json или укажите ?model=/models/model.glb
+        </div>
+        <canvas aria-label="IFC 3D model"></canvas>
+        <div id="metrics"></div>
+        <div class="hint">
+          ЛКМ — выбор / вращение · колесо — масштаб · ПКМ — перемещение
+        </div>
+      </section>
+      <aside>
+        <div class="eyebrow">ИНСПЕКТОР ЭЛЕМЕНТА</div>
+        <h1 id="selection-title">Выберите элемент</h1>
+        <div id="model-summary"></div>
+        <div class="actions">
+          <button id="fit">Вся модель</button
+          ><button id="clear">Снять выбор</button
+          ><button id="isolate">Isolate selected</button
+          ><button id="hide">Hide selected</button
+          ><button id="show">Show all</button
+          ><button id="fit-selected">Fit selected</button
+          ><button id="copy">Copy GUID</button>
+        </div>
+        <pre id="properties">
+IFC GlobalId каждого экземпляра хранится непосредственно в GLB.</pre
+        >
+        <hr />
+        <button id="benchmark">Запустить benchmark</button
+        ><button id="download" disabled>Скачать benchmark JSON</button>
+        <p id="benchmark-status">Эталонный ПК не подтверждён</p>
+        <details>
+          <summary>Отчёт benchmark</summary>
+          <pre id="benchmark-report"></pre>
+        </details>
+      </aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

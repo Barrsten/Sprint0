@@ -1,0 +1,32 @@
+{
+  "1vkCu6jU11YR$$P9qTox9F": {
+    "expressId": 20,
+    "ifcType": "IfcBeam",
+    "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c",
+    "instanceIndex": 0
+  },
+  "3PWmlx7F1FRv4_7LwSweyf": {
+    "expressId": 24,
+    "ifcType": "IfcBeam",
+    "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c",
+    "instanceIndex": 1
+  },
+  "1ki9wzTvL9AQJ7xYycz5Y9": {
+    "expressId": 28,
+    "ifcType": "IfcBeam",
+    "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c",
+    "instanceIndex": 2
+  },
+  "3L_n2OzB19a8XFgyVtQXIW": {
+    "expressId": 32,
+    "ifcType": "IfcBeam",
+    "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c",
+    "instanceIndex": 3
+  },
+  "0gkzWqzX15LRvv00d$hQSE": {
+    "expressId": 41,
+    "ifcType": "IfcElementAssembly",
+    "geometryKey": "23ce60f1b304ef3b22c145369c6a617d038f5c07c0896b8e861613d22f77812c",
+    "instanceIndex": 4
+  }
+}

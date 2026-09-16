@@ -1,0 +1,82 @@
+{
+  "mimeType": "model/gltf-binary",
+  "validatorVersion": "2.0.0-dev.3.10",
+  "validatedAt": "2026-09-16T15:18:55.345Z",
+  "issues": {
+    "numErrors": 0,
+    "numWarnings": 0,
+    "numInfos": 6,
+    "numHints": 0,
+    "messages": [
+      {
+        "code": "UNSUPPORTED_EXTENSION",
+        "message": "Cannot validate an extension as it is not supported by the validator: 'EXT_mesh_gpu_instancing'.",
+        "severity": 2,
+        "pointer": "/extensionsUsed/0"
+      },
+      {
+        "code": "UNSUPPORTED_EXTENSION",
+        "message": "Cannot validate an extension as it is not supported by the validator: 'KHR_draco_mesh_compression'.",
+        "severity": 2,
+        "pointer": "/extensionsUsed/1"
+      },
+      {
+        "code": "UNUSED_OBJECT",
+        "message": "This object may be unused.",
+        "severity": 2,
+        "pointer": "/accessors/2"
+      },
+      {
+        "code": "UNUSED_OBJECT",
+        "message": "This object may be unused.",
+        "severity": 2,
+        "pointer": "/accessors/3"
+      },
+      {
+        "code": "UNUSED_OBJECT",
+        "message": "This object may be unused.",
+        "severity": 2,
+        "pointer": "/accessors/4"
+      },
+      {
+        "code": "UNUSED_OBJECT",
+        "message": "This object may be unused.",
+        "severity": 2,
+        "pointer": "/bufferViews/1"
+      }
+    ],
+    "truncated": false
+  },
+  "info": {
+    "version": "2.0",
+    "generator": "glTF-Transform v4.2.1",
+    "extensionsUsed": [
+      "EXT_mesh_gpu_instancing",
+      "KHR_draco_mesh_compression"
+    ],
+    "extensionsRequired": [
+      "EXT_mesh_gpu_instancing",
+      "KHR_draco_mesh_compression"
+    ],
+    "resources": [
+      {
+        "pointer": "/buffers/0",
+        "mimeType": "application/gltf-buffer",
+        "storage": "glb",
+        "byteLength": 320
+      }
+    ],
+    "animationCount": 0,
+    "materialCount": 1,
+    "hasMorphTargets": false,
+    "hasSkins": false,
+    "hasTextures": false,
+    "hasDefaultScene": true,
+    "drawCallCount": 1,
+    "totalVertexCount": 8,
+    "totalTriangleCount": 12,
+    "maxUVs": 0,
+    "maxInfluences": 0,
+    "maxAttributes": 1
+  }
+}

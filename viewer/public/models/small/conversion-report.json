@@ -1,0 +1,124 @@
+{
+  "status": "SUCCESS",
+  "timestamp": "2026-09-16T15:18:54.952655+00:00",
+  "sourcePath": "/workspace/scratch/6496835d542c/kontur2/fixtures/small.ifc",
+  "sourceSizeBytes": 2493,
+  "workers": 2,
+  "warnings": [],
+  "errors": [],
+  "skippedIfcObjects": [
+    {
+      "expressId": 36,
+      "guid": "39vG3Ln1HChgv4G1bpzNW6",
+      "ifcType": "IfcElementAssembly",
+      "reason": "NO_BODY_REPRESENTATION"
+    },
+    {
+      "expressId": 42,
+      "guid": "3A89SPKWbClOTzuOHrManm",
+      "ifcType": "IfcOpeningElement",
+      "reason": "VOID_OR_OPENING"
+    }
+  ],
+  "parseTimeSeconds": 0.0005202340000778349,
+  "ifcSchema": "IFC4",
+  "ifcopenshellVersion": "0.8.5",
+  "projectUnits": {
+    "lengthScaleToMeters": 0.001,
+    "declared": [
+      "#1=IfcSIUnit(*,.LENGTHUNIT.,.MILLI.,.METRE.)"
+    ],
+    "geometryAndPlacementOutput": "meters; convert-back-units=false"
+  },
+  "elementsInspected": 7,
+  "ifcEntityCount": 42,
+  "renderCandidates": 5,
+  "geometryTimeSeconds": 0.012696308999920802,
+  "assemblyDecisions": [
+    {
+      "expressId": 36,
+      "guid": "39vG3Ln1HChgv4G1bpzNW6",
+      "hasOwnRepresentation": false,
+      "children": [
+        20,
+        24,
+        28,
+        32
+      ],
+      "decision": "CONTAINER"
+    },
+    {
+      "expressId": 41,
+      "guid": "0gkzWqzX15LRvv00d$hQSE",
+      "hasOwnRepresentation": true,
+      "children": [],
+      "decision": "OWN_GEOMETRY"
+    }
+  ],
+  "geometrySucceededBeforeAssemblyDedup": 5,
+  "visibleElements": 5,
+  "elementsWithGlobalId": 5,
+  "uniqueGuidCount": 5,
+  "duplicates": [],
+  "uniqueGeometries": 1,
+  "instanceCount": 5,
+  "deduplicationRatio": 5.0,
+  "triangleCount": 60,
+  "uniqueTriangleCount": 12,
+  "vertexCount": 40,
+  "uniqueVertexCount": 8,
+  "types": {
+    "IfcBeam": 4,
+    "IfcElementAssembly": 1
+  },
+  "sourceBoundingBoxMeters": [
+    [
+      9.85,
+      19.75,
+      0.0
+    ],
+    [
+      16.15,
+      23.25,
+      3.0
+    ]
+  ],
+  "worldPlacementValidation": {
+    "samples": [
+      {
+        "expressId": 20,
+        "guid": "1vkCu6jU11YR$$P9qTox9F",
+        "maxErrorMeters": 0.0
+      },
+      {
+        "expressId": 24,
+        "guid": "3PWmlx7F1FRv4_7LwSweyf",
+        "maxErrorMeters": 0.0
+      },
+      {
+        "expressId": 28,
+        "guid": "1ki9wzTvL9AQJ7xYycz5Y9",
+        "maxErrorMeters": 0.0
+      },
+      {
+        "expressId": 32,
+        "guid": "3L_n2OzB19a8XFgyVtQXIW",
+        "maxErrorMeters": 0.0
+      },
+      {
+        "expressId": 41,
+        "guid": "0gkzWqzX15LRvv00d$hQSE",
+        "maxErrorMeters": 0.0
+      }
+    ],
+    "status": "PASS",
+    "seconds": 0.005286786000169741
+  },
+  "glbBuildTimeSeconds": 0.005686508000053436,
+  "rawGlbSizeBytes": 2620,
+  "dracoTimeSeconds": 0.19713017100002617,
+  "dracoGlbSizeBytes": 2268,
+  "compressionRatio": 1.1552028218694885,
+  "totalConversionTimeSeconds": 0.40207661999988886,
+  "peakRssMiB": 155.609375
+}
