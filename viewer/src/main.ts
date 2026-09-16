@@ -660,7 +660,7 @@ window.addEventListener(
   },
   { once: true },
 );
-if (params.has("model")) void load(params.get("model")!);
+void load(params.get("model") ?? "/models/km/model.glb");
 // Explicitly enabled developer diagnostics for reproducible pointer-event tests.
 if (params.get("test") === "1") {
   const diagnostics = {
