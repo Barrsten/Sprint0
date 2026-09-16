@@ -140,3 +140,4 @@ Worker получает аргументы без shell, пишет в отде�
 - [IfcOpenShell geometry settings](https://docs.ifcopenshell.org/ifcopenshell/geometry_settings.html)
 - [IfcOpenShell geometry iterator](https://docs.ifcopenshell.org/ifcopenshell/geometry_iterator.html)
 - [glTF Transform](https://gltf-transform.dev/)
+ 
