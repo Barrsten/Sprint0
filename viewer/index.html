@@ -58,7 +58,7 @@
         <div>
           <h1>Просмотр IFC-модели</h1>
           <p class="subtitle">
-            IFC → GLB · Draco · GPU instancing — каждый экземпляр хранит
+            IFC → GLB · Draco · GPU-инстансинг — каждый экземпляр хранит
             исходный IFC GlobalId
           </p>
         </div>
@@ -83,7 +83,7 @@
 
       <div class="workspace">
         <section id="viewport" class="viewport" data-state="loading">
-          <canvas aria-label="IFC 3D model"></canvas>
+          <canvas aria-label="3D-модель IFC"></canvas>
 
           <div class="viewport-top">
             <div class="status-pill">
@@ -129,7 +129,8 @@
 
           <div class="metrics-card">
             <div class="metrics-title">
-              <span class="live-dot" aria-hidden="true"></span>Benchmark overlay
+              <span class="live-dot" aria-hidden="true"></span
+              >Производительность
             </div>
             <pre id="metrics"></pre>
           </div>
@@ -166,7 +167,7 @@
                   <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
-                Fit selected
+                Приблизить
               </button>
               <button
                 id="isolate"
@@ -178,7 +179,7 @@
                   <circle cx="12" cy="12" r="9" />
                   <circle cx="12" cy="12" r="3.5" />
                 </svg>
-                Isolate selected
+                Изолировать
               </button>
               <button
                 id="hide"
@@ -196,7 +197,7 @@
                   <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
                   <path d="m2 2 20 20" />
                 </svg>
-                Hide selected
+                Скрыть
               </button>
               <button
                 id="copy"
@@ -217,7 +218,7 @@
                 <svg class="icon-done" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M20 6 9 17l-5-5" />
                 </svg>
-                Copy GUID
+                Копировать GUID
               </button>
               <button
                 id="clear"
@@ -283,11 +284,11 @@ IFC GlobalId каждого экземпляра хранится непосре
           </section>
 
           <section class="card panel bench">
-            <div class="eyebrow">Производительность</div>
-            <h2>Benchmark</h2>
+            <div class="eyebrow">Замеры</div>
+            <h2>Тест производительности</h2>
             <p class="panel-text">
-              Прогрев 3 с, орбита 10 с, серия выборов элементов, isolate / show.
-              Отчёт сохраняется в JSON.
+              Прогрев 3 с, орбита 10 с, серия выборов элементов, изоляция и
+              показ всей модели. Отчёт сохраняется в JSON.
             </p>
             <div class="actions">
               <button
@@ -298,7 +299,7 @@ IFC GlobalId каждого экземпляра хранится непосре
                 <svg class="icon-fill" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M7 4.5v15l12.5-7.5L7 4.5Z" />
                 </svg>
-                Запустить benchmark
+                Запустить тест
               </button>
               <button
                 id="download"
@@ -311,7 +312,7 @@ IFC GlobalId каждого экземпляра хранится непосре
                   <path d="m7 10 5 5 5-5" />
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 </svg>
-                Скачать benchmark JSON
+                Скачать отчёт (JSON)
               </button>
             </div>
             <div class="bench-status">
@@ -323,7 +324,7 @@ IFC GlobalId каждого экземпляра хранится непосре
               <p id="benchmark-status">Эталонный ПК не подтверждён</p>
             </div>
             <details class="raw bench-report">
-              <summary>Отчёт benchmark</summary>
+              <summary>Отчёт теста (JSON)</summary>
               <pre id="benchmark-report"></pre>
             </details>
           </section>

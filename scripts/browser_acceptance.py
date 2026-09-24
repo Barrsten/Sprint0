@@ -49,19 +49,19 @@ def main():
             checks.append(
                 {"test": "pointer-click", "guid": t["guid"], "status": "PASS"}
             )
-        page.get_by_role("button", name="Hide selected", exact=True).click()
+        page.get_by_role("button", name="Скрыть", exact=True).click()
         assert page.evaluate("window.__ifcTest.state().hiddenCount") == 1
         page.get_by_role("button", name="Отменить скрытие", exact=True).click()
         state = page.evaluate("window.__ifcTest.state()")
         assert state["hiddenCount"] == 0 and state["selectedGuid"] == clicked[-1]
         checks.append({"test": "undo-hide", "guid": clicked[-1], "status": "PASS"})
         page.screenshot(path=str(a.output / "single-instance-selection.png"))
-        page.get_by_role("button", name="Isolate selected", exact=True).click()
+        page.get_by_role("button", name="Изолировать", exact=True).click()
         assert page.evaluate("window.__ifcTest.state().isolated")
         page.screenshot(path=str(a.output / "isolate.png"))
         page.get_by_role("button", name="Вся модель", exact=True).click()
         assert not page.evaluate("window.__ifcTest.state().isolated")
-        page.get_by_role("button", name="Hide selected", exact=True).click()
+        page.get_by_role("button", name="Скрыть", exact=True).click()
         assert page.evaluate("window.__ifcTest.state().hiddenCount") == 1
         page.get_by_role("button", name="Вся модель", exact=True).click()
         assert page.evaluate("window.__ifcTest.state().hiddenCount") == 0

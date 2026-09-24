@@ -58,7 +58,7 @@ function renderSummary(elements: number, geometryGroups: number) {
   el("model-summary").replaceChildren(
     stat(elements, "элементов"),
     stat(geometryGroups, "групп геометрии"),
-    node("span", "badge badge-success", "GUID mapping PASS"),
+    node("span", "badge badge-success", "Сопоставление GUID: пройдено"),
   );
 }
 function renderElement(data: IFCElement | null, hasMetadata = false) {
@@ -107,7 +107,7 @@ function renderElement(data: IFCElement | null, hasMetadata = false) {
       node(
         "p",
         "note",
-        "metadata.json не загружен — показаны данные mapping из GLB.",
+        "metadata.json не загружен — показаны данные сопоставления из GLB.",
       ),
     );
   } else {
@@ -492,7 +492,7 @@ async function fetchModel(url: string, signal: AbortSignal) {
     signal,
     cache: params.has("cold") ? "no-store" : "default",
   });
-  if (!response.ok) throw new Error(`GLB HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`GLB: ошибка HTTP ${response.status}`);
   const total = Number(response.headers.get("content-length"));
   const reader = response.body!.getReader();
   const chunks: Uint8Array[] = [];
@@ -558,7 +558,7 @@ async function load(model: string | File, sidecar?: File) {
         ? await fetchModel(model, networkController.signal)
         : await model.arrayBuffer();
     if (token !== generation) return;
-    setStatus("GLB parse / Draco decode…", "loading");
+    setStatus("Разбор GLB и распаковка Draco…", "loading");
     const start = performance.now();
     const gltf = await loader.parseAsync(bytes, "");
     timing.glbParseIncludingDracoMs = performance.now() - start;
@@ -577,7 +577,7 @@ async function load(model: string | File, sidecar?: File) {
       if (!(object instanceof THREE.InstancedMesh)) return;
       const found = mappingFor(object);
       if (!found)
-        throw new Error(`FAIL: mesh without IFC mapping ${object.name}`);
+        throw new Error(`FAIL: у меша нет IFC-сопоставления ${object.name}`);
       let group = logical.get(found.object);
       if (!group) {
         group = {
@@ -589,7 +589,7 @@ async function load(model: string | File, sidecar?: File) {
         logical.set(found.object, group);
       }
       if (object.count !== group.mapping.instanceGuids.length)
-        throw new Error("FAIL: instance mapping cardinality");
+        throw new Error("FAIL: число экземпляров не совпадает с числом GUID");
       group.meshes.push(object);
       group.originals.set(
         object,
@@ -603,8 +603,9 @@ async function load(model: string | File, sidecar?: File) {
     groups = [...logical.values()];
     const guids = groups.flatMap((g) => g.mapping.instanceGuids);
     if (new Set(guids).size !== guids.length)
-      throw new Error("FAIL: duplicate GUID mapping");
-    if (!guids.length) throw new Error("FAIL: no selectable elements");
+      throw new Error("FAIL: повторяющиеся GUID в сопоставлении");
+    if (!guids.length)
+      throw new Error("FAIL: нет доступных для выбора элементов");
     modelBounds.setFromObject(root);
     fit();
     timing.mappingCount = guids.length;
@@ -642,7 +643,10 @@ async function load(model: string | File, sidecar?: File) {
     if (token !== generation) return;
     loading = false;
     unload();
-    setStatus(`Ошибка: ${String(error)}`, "error");
+    setStatus(
+      `Ошибка: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
     console.error(error);
   } finally {
     draco.dispose();
@@ -692,8 +696,16 @@ function animate(now: number) {
     const memory = (
       performance as Performance & { memory?: { usedJSHeapSize: number } }
     ).memory;
-    el("metrics").textContent =
-      `FPS current ${(1000 / delta).toFixed(1)} / avg ${(1000 / s.mean).toFixed(1)} / min ${Number.isFinite(minimumFps) ? minimumFps.toFixed(1) : "—"}\nFrame p50 ${s.p50.toFixed(1)} ms / p95 ${s.p95.toFixed(1)} ms\nDraw calls ${renderer.info.render.calls.toLocaleString()} · triangles ${renderer.info.render.triangles.toLocaleString()}\nGeometries ${renderer.info.memory.geometries} · textures ${renderer.info.memory.textures}\nJS heap ${memory ? (memory.usedJSHeapSize / 1048576).toFixed(0) + " MiB" : "unavailable"}\nRaycast ${lastRaycastMs.toFixed(1)} ms · select ${interaction.selection.at(-1)?.toFixed(1) ?? "—"} ms\nIsolate ${interaction.isolate.at(-1)?.toFixed(1) ?? "—"} ms · show ${interaction.showAll.at(-1)?.toFixed(1) ?? "—"} ms`;
+    const ms = (values: number[]) => values.at(-1)?.toFixed(1) ?? "—";
+    el("metrics").textContent = [
+      `Кадров/с: сейчас ${(1000 / delta).toFixed(1)} / средн. ${(1000 / s.mean).toFixed(1)} / мин ${Number.isFinite(minimumFps) ? minimumFps.toFixed(1) : "—"}`,
+      `Время кадра: p50 ${s.p50.toFixed(1)} мс / p95 ${s.p95.toFixed(1)} мс`,
+      `Вызовов отрисовки ${renderer.info.render.calls.toLocaleString("ru-RU")} · треугольников ${renderer.info.render.triangles.toLocaleString("ru-RU")}`,
+      `Геометрий ${renderer.info.memory.geometries} · текстур ${renderer.info.memory.textures}`,
+      `Память JS ${memory ? (memory.usedJSHeapSize / 1048576).toFixed(0) + " МиБ" : "недоступно"}`,
+      `Рейкаст ${lastRaycastMs.toFixed(1)} мс · выбор ${ms(interaction.selection)} мс`,
+      `Изоляция ${ms(interaction.isolate)} мс · вся модель ${ms(interaction.showAll)} мс`,
+    ].join("\n");
   }
   const completed = afterFrame.splice(0);
   for (const fn of completed) fn(now);
@@ -703,6 +715,11 @@ async function forDuration(ms: number) {
   const start = performance.now();
   while (performance.now() - start < ms) await painted();
 }
+const latencyLabel: Record<string, string> = {
+  PASS: "в норме",
+  PASS_WITH_LIMITATIONS: "с ограничениями",
+  FAIL: "превышена",
+};
 async function benchmark() {
   if (!root || loading || benchmarkRunning) return;
   benchmarkRunning = true;
@@ -724,7 +741,7 @@ async function benchmark() {
   orbitStart = null;
   fit();
   await painted();
-  label.textContent = "Проверка выбора, isolate / show…";
+  label.textContent = "Проверка выбора, изоляции и показа всей модели…";
   const selections: number[] = [];
   const raycasts: number[] = [];
   const pointerResults = [];
@@ -832,7 +849,7 @@ async function benchmark() {
   lastReport = report;
   el("benchmark-report").textContent = JSON.stringify(report, null, 2);
   el<HTMLButtonElement>("download").disabled = false;
-  label.textContent = `Готово: ${report.navigation.fps.toFixed(1)} FPS · UI ${report.interactions.status} · REFERENCE_HARDWARE_NOT_USED`;
+  label.textContent = `Готово: ${report.navigation.fps.toFixed(1)} FPS · задержка интерфейса: ${latencyLabel[report.interactions.status]} · эталонный ПК не использовался`;
   benchmarkRunning = false;
   el<HTMLButtonElement>("benchmark").disabled = false;
   try {
