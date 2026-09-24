@@ -183,7 +183,7 @@ svg {
 
 .page-head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px 24px;
@@ -195,12 +195,6 @@ svg {
   line-height: 1.15;
   font-weight: 700;
   letter-spacing: -0.015em;
-}
-
-.subtitle {
-  margin: 6px 0 0;
-  font-size: 15px;
-  color: var(--text-2);
 }
 
 .page-actions {
@@ -1144,10 +1138,6 @@ pre {
 
   .page-head h1 {
     font-size: 24px;
-  }
-
-  .subtitle {
-    font-size: 14px;
   }
 
   .page-actions,
