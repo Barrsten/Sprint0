@@ -30,29 +30,40 @@ def main():
         page.screenshot(path=str(a.output / "small-model.png"))
         targets = page.evaluate("window.__ifcTest.targets()")
         assert len({t["guid"] for t in targets}) >= 2, "two distinct visible instances"
-        first = targets[0]
-        second = next(t for t in targets if t["guid"] != first["guid"])
-        for t in [first, second]:
+        clicked = []
+        for _ in range(2):
+            # Selecting re-centres the camera on the element, so screen targets
+            # are recomputed after the focus animation settles.
+            targets = page.evaluate("window.__ifcTest.targets()")
+            t = next(t for t in targets if t["guid"] not in clicked)
             page.mouse.click(t["x"], t["y"])
             page.wait_for_function(
                 '(guid)=>JSON.parse(document.querySelector("#properties").textContent).guid===guid',
                 arg=t["guid"],
             )
+            page.wait_for_function("!window.__ifcTest.state().focusing")
             state = page.evaluate("window.__ifcTest.state()")
             assert state["selectedGuid"] == t["guid"]
             assert state["highlightedElements"] == 1
+            clicked.append(t["guid"])
             checks.append(
                 {"test": "pointer-click", "guid": t["guid"], "status": "PASS"}
             )
+        page.get_by_role("button", name="Hide selected", exact=True).click()
+        assert page.evaluate("window.__ifcTest.state().hiddenCount") == 1
+        page.get_by_role("button", name="Отменить скрытие", exact=True).click()
+        state = page.evaluate("window.__ifcTest.state()")
+        assert state["hiddenCount"] == 0 and state["selectedGuid"] == clicked[-1]
+        checks.append({"test": "undo-hide", "guid": clicked[-1], "status": "PASS"})
         page.screenshot(path=str(a.output / "single-instance-selection.png"))
         page.get_by_role("button", name="Isolate selected", exact=True).click()
         assert page.evaluate("window.__ifcTest.state().isolated")
         page.screenshot(path=str(a.output / "isolate.png"))
-        page.get_by_role("button", name="Show all", exact=True).click()
+        page.get_by_role("button", name="Вся модель", exact=True).click()
         assert not page.evaluate("window.__ifcTest.state().isolated")
         page.get_by_role("button", name="Hide selected", exact=True).click()
         assert page.evaluate("window.__ifcTest.state().hiddenCount") == 1
-        page.get_by_role("button", name="Show all", exact=True).click()
+        page.get_by_role("button", name="Вся модель", exact=True).click()
         assert page.evaluate("window.__ifcTest.state().hiddenCount") == 0
         before = page.evaluate("window.__ifcTest.state().camera")
         page.mouse.move(400, 400)
