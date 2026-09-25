@@ -5,6 +5,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
   mappingFor,
   guidAt,
+  type IFCElement,
   type LogicalGroup,
   type Metadata,
   type Selected,
@@ -16,10 +17,146 @@ const el = <T extends HTMLElement>(id: string) =>
 const status = el("status"),
   canvas = document.querySelector("canvas")!,
   viewport = el("viewport");
+// Presentation only: status pill state (idle/loading/ready/error) and progress bar.
+type ViewState = "idle" | "loading" | "ready" | "error";
+function setStatus(text: string, state: ViewState, progress?: number) {
+  status.textContent = text;
+  viewport.dataset.state = state;
+  viewport.classList.toggle("is-determinate", progress !== undefined);
+  if (progress !== undefined)
+    viewport.style.setProperty(
+      "--progress",
+      String(Math.min(1, Math.max(0, progress))),
+    );
+}
+function node<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+) {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+function formatValue(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+const selectionButtons = ["fit-selected", "isolate", "hide", "copy"].map((id) =>
+  el<HTMLButtonElement>(id),
+);
+function renderSummary(elements: number, geometryGroups: number) {
+  const stat = (value: number, label: string) => {
+    const item = node("span", "stat");
+    item.append(
+      node("b", undefined, value.toLocaleString("ru-RU")),
+      ` ${label}`,
+    );
+    return item;
+  };
+  el("model-summary").replaceChildren(
+    stat(elements, "элементов"),
+    stat(geometryGroups, "групп геометрии"),
+    node("span", "badge badge-success", "Сопоставление GUID: пройдено"),
+  );
+}
+function renderElement(data: IFCElement | null, hasMetadata = false) {
+  el("inspector").dataset.selected = String(data !== null);
+  for (const button of selectionButtons) button.disabled = data === null;
+  const view = el("element-view"),
+    meta = el("selection-meta");
+  if (!data) {
+    view.replaceChildren();
+    meta.replaceChildren();
+    return;
+  }
+  meta.replaceChildren(
+    node("span", "badge badge-blue", String(data.ifcType)),
+    node("span", "meta-id", `#${data.expressId}`),
+  );
+  const attributes = node("dl", "kv");
+  const fields: [string, unknown, boolean][] = [
+    ["GlobalId", data.guid, true],
+    ["Express ID", data.expressId, true],
+    ["Класс IFC", data.ifcType, false],
+    ["Name", data.name, false],
+    ["Tag", data.tag, false],
+    ["Description", data.description, false],
+    ["ObjectType", data.objectType, false],
+  ];
+  for (const [label, value, mono] of fields) {
+    const text = formatValue(value);
+    const row = node("div", "kv-row");
+    row.append(
+      node("dt", undefined, label),
+      node(
+        "dd",
+        text === null ? "empty" : mono ? "mono" : undefined,
+        text ?? "—",
+      ),
+    );
+    attributes.append(row);
+  }
+  const children: Node[] = [
+    node("h3", "section-title", "Атрибуты IFC"),
+    attributes,
+  ];
+  if (!hasMetadata) {
+    children.push(
+      node(
+        "p",
+        "note",
+        "metadata.json не загружен — показаны данные сопоставления из GLB.",
+      ),
+    );
+  } else {
+    const psets =
+      data.propertySets && typeof data.propertySets === "object"
+        ? Object.entries(data.propertySets)
+        : [];
+    const title = node("h3", "section-title", "Наборы свойств");
+    title.append(node("span", "count", String(psets.length)));
+    children.push(title);
+    if (!psets.length)
+      children.push(node("p", "panel-text", "Наборы свойств отсутствуют"));
+    for (const [name, props] of psets) {
+      const details = node("details", "pset");
+      details.open = true;
+      const summary = node("summary");
+      summary.append(node("span", "pset-name", name));
+      const rows: [string, unknown][] =
+        props && typeof props === "object" && !Array.isArray(props)
+          ? Object.entries(props)
+          : [["Значение", props]];
+      const psetId = rows.find(([key]) => key === "id")?.[1];
+      if (typeof psetId === "number")
+        summary.append(node("span", "pset-id", `#${psetId}`));
+      const body = node("tbody");
+      for (const [key, value] of rows) {
+        if (key === "id" && typeof value === "number") continue;
+        const text = formatValue(value);
+        const tr = node("tr");
+        const th = node("th", undefined, key);
+        th.scope = "row";
+        tr.append(
+          th,
+          node("td", text === null ? "empty" : undefined, text ?? "—"),
+        );
+        body.append(tr);
+      }
+      const table = node("table", "props");
+      table.append(body);
+      details.append(summary, table);
+      children.push(details);
+    }
+  }
+  view.replaceChildren(...children);
+}
 const params = new URLSearchParams(location.search);
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setClearColor(0x101721);
+renderer.setClearColor(0xf3f5f8);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 scene.add(new THREE.HemisphereLight(0xe7f3ff, 0x536171, 2.5));
@@ -35,9 +172,10 @@ let root: THREE.Object3D | null = null,
 let metadata: Metadata = { schemaVersion: 1, elements: {} },
   selected: Selected | null = null;
 const hidden = new Set<string>(),
+  hiddenStack: Selected[] = [],
   selectionObjects: THREE.Mesh[] = [];
 const highlight = new THREE.MeshBasicMaterial({
-  color: 0x40efb1,
+  color: 0x2f6bff,
   side: THREE.DoubleSide,
   polygonOffset: true,
   polygonOffsetFactor: -2,
@@ -79,8 +217,38 @@ function resize() {
 const observer = new ResizeObserver(resize);
 observer.observe(viewport);
 resize();
+// Camera lock on selection: the orbit pivot glides to the selected element's
+// centre, so rotating and wheel-zooming always keep the element in view.
+const FOCUS_MS = 450;
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+let focusAnimation: {
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+  start: number;
+} | null = null;
+function focusSelected() {
+  const box = selectedBounds();
+  if (box.isEmpty()) return;
+  const to = box.getCenter(new THREE.Vector3());
+  if (reducedMotion.matches) {
+    focusAnimation = null;
+    controls.target.copy(to);
+    return;
+  }
+  focusAnimation = {
+    from: controls.target.clone(),
+    to,
+    start: performance.now(),
+  };
+}
+function syncUi() {
+  el<HTMLButtonElement>("clear").disabled = !selected && !isolated;
+  el("hidden-bar").hidden = hidden.size === 0;
+  el("hidden-count").textContent = `Скрыто: ${hidden.size}`;
+}
 function fit(box = modelBounds) {
   if (box.isEmpty()) return;
+  focusAnimation = null;
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3()).length();
   const distance =
@@ -131,7 +299,10 @@ function select(group: LogicalGroup, index: number) {
   removeSelection();
   selected = { group, index, guid };
   for (const mesh of group.meshes) {
-    const overlay = new THREE.Mesh(mesh.geometry, highlight);
+    const overlay = new THREE.Mesh(
+      mesh.geometry,
+      isolated ? mesh.material : highlight,
+    );
     overlay.matrixAutoUpdate = false;
     overlay.matrix.copy(instanceMatrix(mesh, index, group));
     overlay.renderOrder = 2;
@@ -145,12 +316,16 @@ function select(group: LogicalGroup, index: number) {
   };
   el("selection-title").textContent = String(data.name || data.ifcType);
   el("properties").textContent = JSON.stringify(data, null, 2);
+  renderElement(data, guid in metadata.elements);
+  syncUi();
 }
 function clear() {
   removeSelection();
   selected = null;
   el("selection-title").textContent = "Выберите элемент";
   el("properties").textContent = "Нет выбранного элемента";
+  renderElement(null);
+  syncUi();
 }
 async function measure(
   kind: string,
@@ -164,14 +339,27 @@ async function measure(
   interaction[kind].push(ms);
   return ms;
 }
+// In isolation the selected element is shown with its own IFC materials
+// (no blue highlight) so it can be inspected as is; "Вся модель" restores it.
+function setSelectionMaterial(highlighted: boolean) {
+  if (!selected) return;
+  selected.group.meshes.forEach((mesh, i) => {
+    const overlay = selectionObjects[i];
+    if (overlay) overlay.material = highlighted ? highlight : mesh.material;
+  });
+}
 function isolate() {
   if (!selected) return;
   isolated = true;
   for (const group of groups) group.object.visible = false;
+  setSelectionMaterial(false);
+  syncUi();
 }
 function showAll() {
   isolated = false;
+  setSelectionMaterial(true);
   hidden.clear();
+  hiddenStack.length = 0;
   for (const group of groups) {
     group.object.visible = true;
     for (const mesh of group.meshes) {
@@ -179,18 +367,40 @@ function showAll() {
       mesh.instanceMatrix.needsUpdate = true;
     }
   }
+  syncUi();
 }
 function hide() {
   if (!selected) return;
   const { group, index, guid } = selected;
   hidden.add(guid);
+  hiddenStack.push(selected);
   for (const mesh of group.meshes) {
     mesh.setMatrixAt(index, new THREE.Matrix4().makeScale(0, 0, 0));
     mesh.instanceMatrix.needsUpdate = true;
   }
   clear();
 }
-function pick(clientX: number, clientY: number, started = performance.now()) {
+// Restores the most recently hidden element and selects it again.
+function undoHide() {
+  const last = hiddenStack.pop();
+  if (!last) return;
+  hidden.delete(last.guid);
+  const offset = last.index * 16;
+  for (const mesh of last.group.meshes) {
+    mesh.instanceMatrix.array.set(
+      last.group.originals.get(mesh)!.subarray(offset, offset + 16),
+      offset,
+    );
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+  select(last.group, last.index);
+}
+function pick(
+  clientX: number,
+  clientY: number,
+  started = performance.now(),
+  focus = false,
+) {
   const rect = canvas.getBoundingClientRect();
   raycaster.setFromCamera(
     new THREE.Vector2(
@@ -218,12 +428,13 @@ function pick(clientX: number, clientY: number, started = performance.now()) {
   return measure(
     "selection",
     () => {
-      if (hit)
+      if (hit) {
         select(
           meshGroups.get(hit.object as THREE.InstancedMesh)!,
           hit.instanceId!,
         );
-      else if (!isolated) clear();
+        if (focus) focusSelected();
+      } else if (!isolated) clear();
     },
     started,
   );
@@ -238,7 +449,7 @@ canvas.addEventListener("pointerup", (e) => {
     down &&
     Math.hypot(e.clientX - down.x, e.clientY - down.y) < 4
   )
-    void pick(e.clientX, e.clientY, e.timeStamp);
+    void pick(e.clientX, e.clientY, e.timeStamp, true);
   down = null;
 });
 function disposeObject(object: THREE.Object3D) {
@@ -270,7 +481,10 @@ function unload() {
   meshes = [];
   meshGroups.clear();
   hidden.clear();
+  hiddenStack.length = 0;
   isolated = false;
+  focusAnimation = null;
+  syncUi();
 }
 async function fetchModel(url: string, signal: AbortSignal) {
   const start = performance.now();
@@ -278,7 +492,7 @@ async function fetchModel(url: string, signal: AbortSignal) {
     signal,
     cache: params.has("cold") ? "no-store" : "default",
   });
-  if (!response.ok) throw new Error(`GLB HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`GLB: ошибка HTTP ${response.status}`);
   const total = Number(response.headers.get("content-length"));
   const reader = response.body!.getReader();
   const chunks: Uint8Array[] = [];
@@ -288,7 +502,11 @@ async function fetchModel(url: string, signal: AbortSignal) {
     if (done) break;
     chunks.push(value);
     received += value.length;
-    status.textContent = `Загрузка GLB: ${(received / 1048576).toFixed(1)} МиБ${total ? " / " + (total / 1048576).toFixed(1) : ""}`;
+    setStatus(
+      `Загрузка GLB: ${(received / 1048576).toFixed(1)} МиБ${total ? " / " + (total / 1048576).toFixed(1) : ""}`,
+      "loading",
+      total ? received / total : undefined,
+    );
   }
   const all = new Uint8Array(received);
   let offset = 0;
@@ -308,7 +526,7 @@ async function load(model: string | File, sidecar?: File) {
   unload();
   metadata = { schemaVersion: 1, elements: {} };
   modelUrl = typeof model === "string" ? model : model.name;
-  status.textContent = "Загрузка…";
+  setStatus("Загрузка…", "loading");
   type Decode = (
     buffer: ArrayBuffer,
     callback: (geometry: THREE.BufferGeometry) => void,
@@ -340,7 +558,7 @@ async function load(model: string | File, sidecar?: File) {
         ? await fetchModel(model, networkController.signal)
         : await model.arrayBuffer();
     if (token !== generation) return;
-    status.textContent = "GLB parse / Draco decode…";
+    setStatus("Разбор GLB и распаковка Draco…", "loading");
     const start = performance.now();
     const gltf = await loader.parseAsync(bytes, "");
     timing.glbParseIncludingDracoMs = performance.now() - start;
@@ -359,7 +577,7 @@ async function load(model: string | File, sidecar?: File) {
       if (!(object instanceof THREE.InstancedMesh)) return;
       const found = mappingFor(object);
       if (!found)
-        throw new Error(`FAIL: mesh without IFC mapping ${object.name}`);
+        throw new Error(`FAIL: у меша нет IFC-сопоставления ${object.name}`);
       let group = logical.get(found.object);
       if (!group) {
         group = {
@@ -371,7 +589,7 @@ async function load(model: string | File, sidecar?: File) {
         logical.set(found.object, group);
       }
       if (object.count !== group.mapping.instanceGuids.length)
-        throw new Error("FAIL: instance mapping cardinality");
+        throw new Error("FAIL: число экземпляров не совпадает с числом GUID");
       group.meshes.push(object);
       group.originals.set(
         object,
@@ -385,8 +603,9 @@ async function load(model: string | File, sidecar?: File) {
     groups = [...logical.values()];
     const guids = groups.flatMap((g) => g.mapping.instanceGuids);
     if (new Set(guids).size !== guids.length)
-      throw new Error("FAIL: duplicate GUID mapping");
-    if (!guids.length) throw new Error("FAIL: no selectable elements");
+      throw new Error("FAIL: повторяющиеся GUID в сопоставлении");
+    if (!guids.length)
+      throw new Error("FAIL: нет доступных для выбора элементов");
     modelBounds.setFromObject(root);
     fit();
     timing.mappingCount = guids.length;
@@ -397,8 +616,7 @@ async function load(model: string | File, sidecar?: File) {
     timing.gpuUploadMs = null;
     timing.gpuUploadNote =
       "Not separately measurable without GPU timing instrumentation";
-    el("model-summary").textContent =
-      `${guids.length.toLocaleString()} элементов · ${groups.length.toLocaleString()} групп геометрии · GUID mapping PASS`;
+    renderSummary(guids.length, groups.length);
     if (sidecar) {
       metadata = JSON.parse(await sidecar.text()) as Metadata;
     } else if (typeof model === "string") {
@@ -413,7 +631,10 @@ async function load(model: string | File, sidecar?: File) {
       timing.metadataFetchAndParseMs = performance.now() - start;
     }
     if (token !== generation) return;
-    status.textContent = `Готово · ${modelUrl.split("/").at(-1)} · каждый экземпляр имеет GlobalId`;
+    setStatus(
+      `Готово · ${modelUrl.split("/").at(-1)} · каждый экземпляр имеет GlobalId`,
+      "ready",
+    );
     loading = false;
     frameTimes.length = 0;
     minimumFps = Infinity;
@@ -422,7 +643,10 @@ async function load(model: string | File, sidecar?: File) {
     if (token !== generation) return;
     loading = false;
     unload();
-    status.textContent = `Ошибка: ${String(error)}`;
+    setStatus(
+      `Ошибка: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
     console.error(error);
   } finally {
     draco.dispose();
@@ -450,6 +674,15 @@ function animate(now: number) {
       center.z + Math.sin(angle) * radius,
     );
   }
+  if (focusAnimation) {
+    const t = Math.min(1, (now - focusAnimation.start) / FOCUS_MS);
+    controls.target.lerpVectors(
+      focusAnimation.from,
+      focusAnimation.to,
+      1 - (1 - t) ** 3,
+    );
+    if (t === 1) focusAnimation = null;
+  }
   controls.update();
   renderer.render(scene, camera);
   frameNumber++;
@@ -463,8 +696,16 @@ function animate(now: number) {
     const memory = (
       performance as Performance & { memory?: { usedJSHeapSize: number } }
     ).memory;
-    el("metrics").textContent =
-      `FPS current ${(1000 / delta).toFixed(1)} / avg ${(1000 / s.mean).toFixed(1)} / min ${Number.isFinite(minimumFps) ? minimumFps.toFixed(1) : "—"}\nFrame p50 ${s.p50.toFixed(1)} ms / p95 ${s.p95.toFixed(1)} ms\nDraw calls ${renderer.info.render.calls.toLocaleString()} · triangles ${renderer.info.render.triangles.toLocaleString()}\nGeometries ${renderer.info.memory.geometries} · textures ${renderer.info.memory.textures}\nJS heap ${memory ? (memory.usedJSHeapSize / 1048576).toFixed(0) + " MiB" : "unavailable"}\nRaycast ${lastRaycastMs.toFixed(1)} ms · select ${interaction.selection.at(-1)?.toFixed(1) ?? "—"} ms\nIsolate ${interaction.isolate.at(-1)?.toFixed(1) ?? "—"} ms · show ${interaction.showAll.at(-1)?.toFixed(1) ?? "—"} ms`;
+    const ms = (values: number[]) => values.at(-1)?.toFixed(1) ?? "—";
+    el("metrics").textContent = [
+      `Кадров/с: сейчас ${(1000 / delta).toFixed(1)} / средн. ${(1000 / s.mean).toFixed(1)} / мин ${Number.isFinite(minimumFps) ? minimumFps.toFixed(1) : "—"}`,
+      `Время кадра: p50 ${s.p50.toFixed(1)} мс / p95 ${s.p95.toFixed(1)} мс`,
+      `Вызовов отрисовки ${renderer.info.render.calls.toLocaleString("ru-RU")} · треугольников ${renderer.info.render.triangles.toLocaleString("ru-RU")}`,
+      `Геометрий ${renderer.info.memory.geometries} · текстур ${renderer.info.memory.textures}`,
+      `Память JS ${memory ? (memory.usedJSHeapSize / 1048576).toFixed(0) + " МиБ" : "недоступно"}`,
+      `Рейкаст ${lastRaycastMs.toFixed(1)} мс · выбор ${ms(interaction.selection)} мс`,
+      `Изоляция ${ms(interaction.isolate)} мс · вся модель ${ms(interaction.showAll)} мс`,
+    ].join("\n");
   }
   const completed = afterFrame.splice(0);
   for (const fn of completed) fn(now);
@@ -474,6 +715,11 @@ async function forDuration(ms: number) {
   const start = performance.now();
   while (performance.now() - start < ms) await painted();
 }
+const latencyLabel: Record<string, string> = {
+  PASS: "в норме",
+  PASS_WITH_LIMITATIONS: "с ограничениями",
+  FAIL: "превышена",
+};
 async function benchmark() {
   if (!root || loading || benchmarkRunning) return;
   benchmarkRunning = true;
@@ -495,7 +741,7 @@ async function benchmark() {
   orbitStart = null;
   fit();
   await painted();
-  label.textContent = "Проверка выбора, isolate / show…";
+  label.textContent = "Проверка выбора, изоляции и показа всей модели…";
   const selections: number[] = [];
   const raycasts: number[] = [];
   const pointerResults = [];
@@ -603,7 +849,7 @@ async function benchmark() {
   lastReport = report;
   el("benchmark-report").textContent = JSON.stringify(report, null, 2);
   el<HTMLButtonElement>("download").disabled = false;
-  label.textContent = `Готово: ${report.navigation.fps.toFixed(1)} FPS · UI ${report.interactions.status} · REFERENCE_HARDWARE_NOT_USED`;
+  label.textContent = `Готово: ${report.navigation.fps.toFixed(1)} FPS · задержка интерфейса: ${latencyLabel[report.interactions.status]} · эталонный ПК не использовался`;
   benchmarkRunning = false;
   el<HTMLButtonElement>("benchmark").disabled = false;
   try {
@@ -617,17 +863,28 @@ async function benchmark() {
   }
   if (params.has("download")) downloadReport(report);
 }
-el("fit").onclick = () => fit();
+// "Вся модель": restores hidden/isolated elements (former Show all) and
+// returns the camera to the default diagonal overview of the whole model.
+el("fit").onclick = () =>
+  void measure("showAll", () => {
+    showAll();
+    fit();
+  });
 el("clear").onclick = () => {
   if (isolated) showAll();
   clear();
 };
 el("isolate").onclick = () => void measure("isolate", isolate);
 el("hide").onclick = () => void measure("hide", hide);
-el("show").onclick = () => void measure("showAll", showAll);
+el("undo-hide").onclick = undoHide;
 el("fit-selected").onclick = () => fit(selectedBounds());
 el("copy").onclick = () => {
-  if (selected) void navigator.clipboard.writeText(selected.guid);
+  if (selected)
+    void navigator.clipboard.writeText(selected.guid).then(() => {
+      const button = el("copy");
+      button.classList.add("is-done");
+      setTimeout(() => button.classList.remove("is-done"), 1400);
+    });
 };
 el("benchmark").onclick = () => void benchmark();
 el("download").onclick = () => downloadReport(lastReport);
@@ -670,7 +927,12 @@ if (params.get("test") === "1") {
       highlightedPrimitives: selectionObjects.length,
       isolated,
       hiddenCount: hidden.size,
+      focusing: focusAnimation !== null,
       camera: camera.position.toArray(),
+      target: controls.target.toArray(),
+      selectedCenter: selected
+        ? selectedBounds().getCenter(new THREE.Vector3()).toArray()
+        : null,
       mappedGuids: groups.reduce(
         (n, g) => n + g.mapping.instanceGuids.length,
         0,
