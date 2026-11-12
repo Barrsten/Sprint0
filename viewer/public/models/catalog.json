@@ -1,0 +1,15 @@
+{
+  "sets": [
+    {
+      "id": "kr",
+      "title": "МДИЛ ЗМ02 · КР (КЖ + КМ) · СБЖ",
+      "url": "kr/set.json"
+    },
+    {
+      "id": "km",
+      "title": "МДИЛ ЗМ02 · КМ (Спринт 0)",
+      "url": "km/set.json"
+    }
+  ],
+  "default": "kr"
+}

@@ -5,7 +5,14 @@ from time import perf_counter
 from typing import Any
 import logging
 import numpy as np
-from .model import Group, geometry_key, check_geometry, bounds, union_bounds
+from .model import (
+    Group,
+    geometry_key,
+    check_geometry,
+    drop_degenerate_triangles,
+    bounds,
+    union_bounds,
+)
 from .metadata import element_metadata
 from .math3d import decompose_matrix, compose_matrix
 
@@ -33,6 +40,34 @@ def body_representations(e: Any) -> list:
     ]
 
 
+def spatial_structure(f: Any, length_scale: float) -> dict:
+    """Project / site / building names and storeys with world elevations (m).
+
+    Storey elevation is the world Z of its placement, i.e. the same frame as the
+    converted geometry, so it can be used directly for horizontal sections.
+    """
+    from ifcopenshell.util.placement import get_local_placement
+
+    def name(entity_type: str) -> str | None:
+        items = f.by_type(entity_type)
+        return items[0].Name if items else None
+
+    storeys = []
+    for s in f.by_type("IfcBuildingStorey"):
+        try:
+            z = float(get_local_placement(s.ObjectPlacement)[2, 3]) * length_scale
+        except Exception:
+            z = float(s.Elevation or 0) * length_scale
+        storeys.append({"name": s.Name, "guid": s.GlobalId, "elevationMeters": z})
+    storeys.sort(key=lambda s: s["elevationMeters"])
+    return {
+        "project": name("IfcProject"),
+        "site": name("IfcSite"),
+        "building": name("IfcBuilding"),
+        "storeys": storeys,
+    }
+
+
 def extract(
     path: Path, workers: int, with_metadata: bool, report: dict, on_stage=None
 ) -> tuple[list[Group], dict, dict]:
@@ -50,6 +85,10 @@ def extract(
         "declared": [str(x) for ua in f.by_type("IfcUnitAssignment") for x in ua.Units],
         "geometryAndPlacementOutput": "meters; convert-back-units=false",
     }
+    # Quantities (Qto_*.NetVolume) are in the project volume unit.
+    volume_scale = unit.calculate_unit_scale(f, "VOLUMEUNIT")
+    report["projectUnits"]["volumeScaleToCubicMeters"] = volume_scale
+    report["spatial"] = spatial_structure(f, unit.calculate_unit_scale(f))
     products = f.by_type("IfcProduct")
     report["elementsInspected"] = len(products)
     report["ifcEntityCount"] = sum(1 for _ in f)
@@ -172,6 +211,21 @@ def extract(
             ids[ids < 0] = default
             if len(ids) != len(faces) or ids.max(initial=0) >= len(mats):
                 raise ValueError("INVALID_MATERIAL_ASSIGNMENT")
+            # Zero-area triangles from the tessellator are dropped (non-critical,
+            # reported); an element with no valid triangle still fails below.
+            faces, ids, removed = drop_degenerate_triangles(p, faces, ids)
+            if removed:
+                report["warnings"].append(
+                    {
+                        "expressId": e.id(),
+                        "guid": guid,
+                        "ifcType": e.is_a(),
+                        "reason": "DEGENERATE_TRIANGLES_REMOVED",
+                        "severity": "NON_CRITICAL",
+                        "removedTriangles": removed,
+                        "remainingTriangles": int(len(faces)),
+                    }
+                )
             # Full deterministic content hash, including material assignment.
             # No assumption about geometry.id uniqueness is needed.
             key = geometry_key(p, faces, ids, mats)
@@ -194,7 +248,9 @@ def extract(
                 "instanceIndex": len(bucket.guids) - 1,
             }
             if with_metadata:
-                metadata[guid] = element_metadata(e, report["warnings"])
+                metadata[guid] = element_metadata(
+                    e, report["warnings"], volume_scale
+                )
             succeeded += 1
             if succeeded % 1000 == 0:
                 log.info("Geometry: %d / %d products", succeeded, len(candidates))

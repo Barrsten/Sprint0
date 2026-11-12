@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import resource
+import sys
 import subprocess
 from time import perf_counter
 from datetime import datetime, timezone
@@ -59,9 +60,37 @@ def convert(
             raise ValueError("INVALID_OR_TRUNCATED_IFC_ENVELOPE")
         groups, md, manifest = extract(source, workers, metadata, report, on_stage=mark)
         write_json(output / "source-manifest.json", manifest)
+        sbzh_summary = None
         if metadata:
             write_json(output / "metadata.json", md)
+            from .sbzh import schedule, to_csv
+
+            products = schedule(md["elements"], source.stem)
+            sbzh_summary = products["totals"]
+            report["sbzh"] = sbzh_summary
+            if products["rows"]:
+                write_json(output / "sbzh.json", products)
+                (output / "sbzh.csv").write_text(to_csv(products), encoding="utf8")
         origin = np.mean(np.array(report["sourceBoundingBoxMeters"]), axis=0)
+        write_json(
+            output / "model-info.json",
+            {
+                "schemaVersion": 1,
+                "file": source.name,
+                "name": source.stem,
+                "ifcSchema": report.get("ifcSchema"),
+                "spatial": report.get("spatial"),
+                "boundingBoxMeters": report["sourceBoundingBoxMeters"],
+                "originMeters": origin.tolist(),
+                "elements": report.get("visibleElements"),
+                "triangles": report.get("triangleCount"),
+                "types": report.get("types"),
+                "sbzh": sbzh_summary,
+                "nonCriticalIssues": [
+                    w for w in report["warnings"] if w.get("severity") == "NON_CRITICAL"
+                ],
+            },
+        )
         mark("glb")
         t = perf_counter()
         build(
@@ -160,7 +189,9 @@ def convert(
         raise
     finally:
         report["totalConversionTimeSeconds"] = perf_counter() - start
-        report["peakRssMiB"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        # ru_maxrss is KiB on Linux but bytes on macOS.
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        report["peakRssMiB"] = rss / (1048576 if sys.platform == "darwin" else 1024)
         report["peakRssScope"] = (
             "converter worker high-water mark; excludes Draco child"
         )

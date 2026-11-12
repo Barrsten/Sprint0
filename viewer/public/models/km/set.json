@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "km",
+  "title": "МДИЛ ЗМ02 · КМ (Спринт 0)",
+  "models": [
+    {
+      "id": "К-КМ-0",
+      "name": "МДИЛ_ЗМ02-100-00_К-КМ-0 (26.06.2026)",
+      "discipline": "КМ",
+      "glb": "model.glb",
+      "metadata": "metadata.json",
+      "sbzh": null
+    }
+  ]
+}

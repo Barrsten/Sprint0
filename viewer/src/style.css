@@ -19,6 +19,9 @@
   --green-soft: #e1f3e5;
   --red: #d63939;
   --red-soft: #fdecec;
+  --amber: #b45f06;
+  --amber-dot: #f59e0b;
+  --amber-soft: #fff3df;
   --radius-lg: 20px;
   --radius-md: 14px;
   --radius-sm: 10px;
@@ -1056,6 +1059,457 @@ pre {
 
 .bench-report:has(pre:empty) {
   display: none;
+}
+
+/* ─── Set picker ─────────────────────────────────────────── */
+
+.set-picker select {
+  height: 40px;
+  max-width: 320px;
+  padding: 0 38px 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='m1 1.5 5 5 5-5' stroke='%235b6274' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 15px center;
+  font: 600 14px/1 var(--font);
+  color: var(--text);
+  text-overflow: ellipsis;
+  appearance: none;
+  cursor: pointer;
+}
+
+.set-picker select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.set-picker[hidden] {
+  display: none;
+}
+
+/* ─── Tabs ───────────────────────────────────────────────── */
+
+.tabs {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.tabs [role="tab"] {
+  flex: 1;
+  height: 36px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tabs [role="tab"]:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.tabs [role="tab"][aria-selected="true"] {
+  background: var(--navy);
+  color: #fff;
+}
+
+.tabs [role="tab"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+[role="tabpanel"][hidden] {
+  display: none;
+}
+
+/* ─── Shared bits ────────────────────────────────────────── */
+
+.badge-amber {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.section-title .badge {
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.input {
+  width: 100%;
+  height: 42px;
+  margin-top: 16px;
+  padding: 0 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  font: 14px var(--font);
+  color: var(--text);
+}
+
+.input::placeholder {
+  color: var(--text-3);
+}
+
+.input:focus-visible {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: var(--focus);
+}
+
+.mark-link {
+  margin-top: 12px;
+  white-space: normal;
+  height: auto;
+  min-height: 38px;
+  padding-block: 8px;
+  text-align: left;
+}
+
+.mini-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.mini-stats:empty {
+  display: none;
+}
+
+.mini-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.mini-stat b {
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-stat span {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+/* ─── СБЖ table ──────────────────────────────────────────── */
+
+.table-wrap {
+  max-height: 440px;
+  margin-top: 14px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  scrollbar-width: thin;
+}
+
+.sbzh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sbzh-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 10px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.sbzh-table td {
+  padding: 9px 10px;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.sbzh-table tbody tr:first-child td {
+  border-top: 0;
+}
+
+.sbzh-table tbody tr {
+  cursor: pointer;
+}
+
+.sbzh-table tbody tr:hover td {
+  background: var(--surface-muted);
+}
+
+.sbzh-table tbody tr.is-active td {
+  background: var(--amber-soft);
+}
+
+.sbzh-table tbody tr:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+.sbzh-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sbzh-table .mark {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sbzh-table .name small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.sbzh-table .empty-row {
+  padding: 18px;
+  text-align: center;
+  color: var(--text-3);
+  cursor: default;
+}
+
+.sbzh-active {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #f3d9a8;
+  border-radius: var(--radius-md);
+  background: #fffaf1;
+}
+
+.sbzh-active[hidden] {
+  display: none;
+}
+
+.sbzh-active-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sbzh-active-head .badge {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 13.5px;
+}
+
+.sbzh-active-head .panel-text {
+  margin: 0;
+}
+
+.sbzh-active .kv {
+  background: var(--surface);
+}
+
+.sbzh-active .kv-row {
+  grid-template-columns: 136px minmax(0, 1fr);
+}
+
+.sbzh-active .actions {
+  margin-top: 14px;
+}
+
+#sbzh-content[hidden],
+#sbzh-empty[hidden] {
+  display: none;
+}
+
+/* ─── Models of a set ────────────────────────────────────── */
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-row {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.model-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.model-toggle input,
+.switch input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--navy);
+}
+
+.model-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.model-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0 28px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.alignment {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.alignment[hidden] {
+  display: none;
+}
+
+.alignment .panel-text {
+  font-size: 13px;
+}
+
+/* ─── Section ────────────────────────────────────────────── */
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+
+.segmented button {
+  flex: 1;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(20 28 56 / 12%);
+}
+
+.segmented button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.range-row input {
+  flex: 1;
+  accent-color: var(--navy);
+}
+
+.range-row output {
+  min-width: 130px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.storey-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.storey {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: 500 13.5px var(--font);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.storey:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+}
+
+.storey:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.storey-elev {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  white-space: nowrap;
 }
 
 /* ─── Motion ─────────────────────────────────────────────── */

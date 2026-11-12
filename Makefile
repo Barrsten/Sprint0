@@ -4,7 +4,7 @@ FILE ?= fixtures/km.ifc
 OUT ?= reports/km
 WORKERS ?= 4
 
-.PHONY: setup build convert viewer test validate benchmark fixture
+.PHONY: setup build convert set viewer test validate benchmark fixture
 setup:
 	$(PYTHON) -m venv .venv
 	$(VENV_PY) -m pip install -e '.[test]'
@@ -16,8 +16,12 @@ build:
 	npm run build --prefix viewer
 convert:
 	$(VENV_PY) -m converter "$(FILE)" --output "$(OUT)" --workers $(WORKERS) --draco --metadata --validate --report --timeout 2400
+# Federated set from converted folders, e.g.
+# make set ID=kr TITLE="МДИЛ ЗМ02 · КР" DIRS="reports/kr/К1-КЖ-0 reports/kr/К1-КМ-0"
+set:
+	$(VENV_PY) -m scripts.build_set --id "$(ID)" --title "$(TITLE)" --out "viewer/public/models/$(ID)" $(DIRS)
 viewer:
-	$(PYTHON) scripts/serve.py
+	$(PYTHON) scripts/serve.py --models viewer/dist/models
 fixture:
 	$(VENV_PY) -m scripts.fixture fixtures/small.ifc
 	$(VENV_PY) -m converter fixtures/small.ifc -o reports/small

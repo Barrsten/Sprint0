@@ -46,6 +46,27 @@ def check_geometry(p: np.ndarray, f: np.ndarray) -> None:
         raise ValueError(f"ZERO_AREA_TRIANGLES: {n}")
 
 
+def drop_degenerate_triangles(
+    p: np.ndarray, f: np.ndarray, ids: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Remove zero-area triangles (same criterion as check_geometry).
+
+    They cover no visible area, so removing them is lossless. An element whose
+    triangles are all degenerate keeps them and still fails check_geometry.
+    """
+    if not len(f) or f.min() < 0 or f.max() >= len(p):
+        return f, ids, 0
+    tri = p[f]
+    areas = np.linalg.norm(
+        np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]), axis=1
+    )
+    keep = areas != 0
+    removed = int(len(f) - np.count_nonzero(keep))
+    if not removed or removed == len(f):
+        return f, ids, 0
+    return f[keep].copy(), ids[keep].copy(), removed
+
+
 def bounds(p: np.ndarray, m: np.ndarray) -> np.ndarray:
     v = p @ m[:3, :3].T + m[:3, 3]
     return np.array([v.min(axis=0), v.max(axis=0)])

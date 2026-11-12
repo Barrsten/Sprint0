@@ -8,8 +8,24 @@ import {
   type IFCElement,
   type LogicalGroup,
   type Metadata,
+  type ModelSet,
+  type ModelSource,
+  type SbzhData,
+  type SbzhRecord,
+  type SbzhRow,
   type Selected,
+  type Storey,
 } from "./types";
+import {
+  combine,
+  concrete,
+  downloadCsv,
+  fmt,
+  recordRows,
+  rowKey,
+  span,
+  type SbzhSet,
+} from "./sbzh";
 import { stats, latencyStatus, downloadReport } from "./performance";
 import "./style.css";
 const el = <T extends HTMLElement>(id: string) =>
@@ -46,7 +62,7 @@ function formatValue(value: unknown): string | null {
 const selectionButtons = ["fit-selected", "isolate", "hide", "copy"].map((id) =>
   el<HTMLButtonElement>(id),
 );
-function renderSummary(elements: number, geometryGroups: number) {
+function renderSummary(elements: number, geometryGroups: number, models = 1) {
   const stat = (value: number, label: string) => {
     const item = node("span", "stat");
     item.append(
@@ -56,12 +72,19 @@ function renderSummary(elements: number, geometryGroups: number) {
     return item;
   };
   el("model-summary").replaceChildren(
+    ...(models > 1
+      ? [stat(models, plural(models, "модель", "модели", "моделей"))]
+      : []),
     stat(elements, "элементов"),
     stat(geometryGroups, "групп геометрии"),
     node("span", "badge badge-success", "Сопоставление GUID: пройдено"),
   );
 }
-function renderElement(data: IFCElement | null, hasMetadata = false) {
+function renderElement(
+  data: IFCElement | null,
+  hasMetadata = false,
+  modelId?: string,
+) {
   el("inspector").dataset.selected = String(data !== null);
   for (const button of selectionButtons) button.disabled = data === null;
   const view = el("element-view"),
@@ -80,6 +103,9 @@ function renderElement(data: IFCElement | null, hasMetadata = false) {
     ["GlobalId", data.guid, true],
     ["Express ID", data.expressId, true],
     ["Класс IFC", data.ifcType, false],
+    ["Модель", modelId ? modelName(modelId) : null, false],
+    ["Тип", data.typeName, false],
+    ["Этаж", data.storey, false],
     ["Name", data.name, false],
     ["Tag", data.tag, false],
     ["Description", data.description, false],
@@ -102,6 +128,32 @@ function renderElement(data: IFCElement | null, hasMetadata = false) {
     node("h3", "section-title", "Атрибуты IFC"),
     attributes,
   ];
+  const product = data.sbzh as SbzhRecord | undefined;
+  if (product) {
+    const title = node("h3", "section-title", "Изделие СБЖ");
+    title.append(node("span", "badge badge-amber", "сборный ж/б"));
+    const list = node("dl", "kv");
+    for (const [label, value] of recordRows(product)) {
+      const row = node("div", "kv-row");
+      row.append(node("dt", undefined, label), node("dd", undefined, value));
+      list.append(row);
+    }
+    children.push(title, list);
+    const row = modelId ? sbzhByKey.get(`${modelId}::${product.mark}`) : null;
+    if (row) {
+      const button = node(
+        "button",
+        "btn btn-secondary btn-sm mark-link",
+        `Все изделия марки ${row.mark} · ${row.count} шт`,
+      );
+      button.type = "button";
+      button.onclick = () => {
+        showTab("sbzh");
+        highlightMark(row, true);
+      };
+      children.push(button);
+    }
+  }
   if (!hasMetadata) {
     children.push(
       node(
@@ -166,9 +218,21 @@ scene.add(sun);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000000);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-let root: THREE.Object3D | null = null,
+// Federation root: one child scene per loaded model, each in its own (shared)
+// IFC world coordinates — nothing is moved to make models line up.
+let root: THREE.Group | null = null,
   groups: LogicalGroup[] = [],
   meshes: THREE.InstancedMesh[] = [];
+interface LoadedModel {
+  source: ModelSource;
+  object: THREE.Object3D;
+  elements: number;
+}
+let loadedModels: LoadedModel[] = [];
+let currentSet: ModelSet | null = null;
+const guidIndex = new Map<string, { group: LogicalGroup; index: number }>();
+let sbzh: SbzhSet = combine([]);
+const sbzhByKey = new Map<string, SbzhRow>();
 let metadata: Metadata = { schemaVersion: 1, elements: {} },
   selected: Selected | null = null;
 const hidden = new Set<string>(),
@@ -181,6 +245,29 @@ const highlight = new THREE.MeshBasicMaterial({
   polygonOffsetFactor: -2,
   polygonOffsetUnits: -2,
 });
+// Amber overlay for "all products of a mark"; blue stays for the single pick.
+const markMaterial = new THREE.MeshBasicMaterial({
+  color: 0xf59e0b,
+  side: THREE.DoubleSide,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+  polygonOffsetUnits: -2,
+});
+interface MarkOverlay {
+  overlay: THREE.InstancedMesh;
+  mesh: THREE.InstancedMesh;
+  model: string;
+}
+let mark: { row: SbzhRow; overlays: MarkOverlay[]; isolated: boolean } | null =
+  null;
+type Axis = "x" | "y" | "z";
+const section = {
+  enabled: false,
+  axis: "y" as Axis,
+  value: 0,
+  flipped: false,
+  plane: new THREE.Plane(),
+};
 let isolated = false,
   modelBounds = new THREE.Box3(),
   generation = 0,
@@ -242,7 +329,7 @@ function focusSelected() {
   };
 }
 function syncUi() {
-  el<HTMLButtonElement>("clear").disabled = !selected && !isolated;
+  el<HTMLButtonElement>("clear").disabled = !selected && !isolated && !mark;
   el("hidden-bar").hidden = hidden.size === 0;
   el("hidden-count").textContent = `Скрыто: ${hidden.size}`;
 }
@@ -301,7 +388,7 @@ function select(group: LogicalGroup, index: number) {
   for (const mesh of group.meshes) {
     const overlay = new THREE.Mesh(
       mesh.geometry,
-      isolated ? mesh.material : highlight,
+      isolated && !mark?.isolated ? mesh.material : highlight,
     );
     overlay.matrixAutoUpdate = false;
     overlay.matrix.copy(instanceMatrix(mesh, index, group));
@@ -316,7 +403,7 @@ function select(group: LogicalGroup, index: number) {
   };
   el("selection-title").textContent = String(data.name || data.ifcType);
   el("properties").textContent = JSON.stringify(data, null, 2);
-  renderElement(data, guid in metadata.elements);
+  renderElement(data, guid in metadata.elements, group.model);
   syncUi();
 }
 function clear() {
@@ -350,6 +437,7 @@ function setSelectionMaterial(highlighted: boolean) {
 }
 function isolate() {
   if (!selected) return;
+  clearMark();
   isolated = true;
   for (const group of groups) group.object.visible = false;
   setSelectionMaterial(false);
@@ -367,6 +455,17 @@ function showAll() {
       mesh.instanceMatrix.needsUpdate = true;
     }
   }
+  for (const model of loadedModels) model.object.visible = true;
+  if (mark) {
+    mark.isolated = false;
+    for (const o of mark.overlays) {
+      o.overlay.material = markMaterial;
+      o.overlay.visible = true;
+    }
+    renderMarkCard();
+  }
+  setSectionEnabled(false);
+  renderModels();
   syncUi();
 }
 function hide() {
@@ -379,6 +478,7 @@ function hide() {
     mesh.instanceMatrix.needsUpdate = true;
   }
   clear();
+  if (mark?.row.guids.includes(guid)) highlightMark(mark.row);
 }
 // Restores the most recently hidden element and selects it again.
 function undoHide() {
@@ -393,8 +493,453 @@ function undoHide() {
     );
     mesh.instanceMatrix.needsUpdate = true;
   }
+  if (mark?.row.guids.includes(last.guid)) highlightMark(mark.row);
   select(last.group, last.index);
 }
+function plural(n: number, one: string, few: string, many: string) {
+  const a = n % 10,
+    b = n % 100;
+  if (a === 1 && b !== 11) return one;
+  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return few;
+  return many;
+}
+function modelName(id: string) {
+  return loadedModels.find((m) => m.source.id === id)?.source.name ?? id;
+}
+function modelVisible(id: string) {
+  return loadedModels.find((m) => m.source.id === id)?.object.visible ?? true;
+}
+function isShown(mesh: THREE.InstancedMesh) {
+  const group = meshGroups.get(mesh)!;
+  return group.object.visible && modelVisible(group.model);
+}
+
+// ─── Section plane ────────────────────────────────────────────
+// Three.js discards fragments with a negative signed distance, so by default
+// the plane keeps everything below / before the chosen coordinate.
+const axisVectors: Record<Axis, THREE.Vector3> = {
+  x: new THREE.Vector3(1, 0, 0),
+  y: new THREE.Vector3(0, 1, 0),
+  z: new THREE.Vector3(0, 0, 1),
+};
+function clippedAway(point: THREE.Vector3) {
+  return section.enabled && section.plane.distanceToPoint(point) < 0;
+}
+function sectionRange(axis = section.axis) {
+  const k = axis === "x" ? 0 : axis === "y" ? 1 : 2;
+  return {
+    min: modelBounds.min.getComponent(k),
+    max: modelBounds.max.getComponent(k),
+  };
+}
+function applySection() {
+  const normal = axisVectors[section.axis]
+    .clone()
+    .multiplyScalar(section.flipped ? 1 : -1);
+  section.plane.set(normal, section.flipped ? -section.value : section.value);
+  renderer.clippingPlanes = section.enabled ? [section.plane] : [];
+  syncSectionUi();
+}
+function setSectionEnabled(enabled: boolean) {
+  if (enabled && modelBounds.isEmpty()) return;
+  if (enabled && !section.enabled) {
+    const { min, max } = sectionRange();
+    if (section.value < min || section.value > max)
+      section.value = (min + max) / 2;
+  }
+  section.enabled = enabled;
+  applySection();
+}
+function setSection(axis: Axis, value: number, flipped = false) {
+  section.axis = axis;
+  section.value = value;
+  section.flipped = flipped;
+  section.enabled = true;
+  applySection();
+}
+function sectionLabel() {
+  const v = section.value;
+  if (section.axis === "y") return `Отметка ${fmt(v)} м`;
+  // glTF Y-up: IFC X = x, IFC Y = −z.
+  return section.axis === "x" ? `X = ${fmt(v)} м` : `Y = ${fmt(-v)} м`;
+}
+function syncSectionUi() {
+  el<HTMLInputElement>("section-on").checked = section.enabled;
+  for (const b of document.querySelectorAll<HTMLButtonElement>("[data-axis]"))
+    b.setAttribute("aria-pressed", String(b.dataset.axis === section.axis));
+  const { min, max } = sectionRange();
+  const range = el<HTMLInputElement>("section-range");
+  range.disabled = !section.enabled;
+  range.value = String(max > min ? (section.value - min) / (max - min) : 0);
+  el("section-value").textContent = section.enabled ? sectionLabel() : "—";
+  for (const id of ["section-flip", "section-off"])
+    el<HTMLButtonElement>(id).disabled = !section.enabled;
+}
+function storeys(): Storey[] {
+  if (currentSet?.storeys?.length) return currentSet.storeys;
+  return [];
+}
+function renderSectionPanel() {
+  const list = el("section-storeys");
+  const items = storeys();
+  list.replaceChildren(
+    ...items.map((s) => {
+      const b = node("button", "storey");
+      b.type = "button";
+      b.append(
+        node("span", undefined, s.name),
+        node("span", "storey-elev", `${fmt(s.elevationMeters, 2)} м`),
+      );
+      b.onclick = () => setSection("y", s.elevationMeters + 1.2);
+      return b;
+    }),
+  );
+  if (!items.length)
+    list.append(
+      node("p", "panel-text", "В модели нет данных об этажах для плана."),
+    );
+  syncSectionUi();
+}
+el<HTMLInputElement>("section-on").onchange = (e) =>
+  setSectionEnabled((e.target as HTMLInputElement).checked);
+for (const b of document.querySelectorAll<HTMLButtonElement>("[data-axis]"))
+  b.onclick = () => {
+    const axis = b.dataset.axis as Axis;
+    const { min, max } = sectionRange(axis);
+    setSection(axis, (min + max) / 2, section.flipped);
+  };
+el<HTMLInputElement>("section-range").oninput = (e) => {
+  const { min, max } = sectionRange();
+  section.value =
+    min + (max - min) * Number((e.target as HTMLInputElement).value);
+  applySection();
+};
+el("section-flip").onclick = () => {
+  section.flipped = !section.flipped;
+  applySection();
+};
+el("section-off").onclick = () => setSectionEnabled(false);
+
+// ─── Precast (СБЖ) marks ──────────────────────────────────────
+function clearMark() {
+  if (!mark) return;
+  if (mark.isolated) {
+    isolated = false;
+    for (const group of groups) group.object.visible = true;
+  }
+  for (const o of mark.overlays) {
+    scene.remove(o.overlay);
+    o.overlay.dispose();
+  }
+  mark = null;
+  renderMarkCard();
+  markActiveRow();
+  syncUi();
+}
+/** One extra InstancedMesh per geometry primitive holds all products of the mark. */
+function highlightMark(row: SbzhRow, fitView = false) {
+  const keepIsolated = mark?.isolated && mark.row === row;
+  clearMark();
+  const byGroup = new Map<LogicalGroup, number[]>();
+  for (const guid of row.guids) {
+    const found = guidIndex.get(guid);
+    if (!found || hidden.has(guid)) continue;
+    const list = byGroup.get(found.group) ?? [];
+    list.push(found.index);
+    byGroup.set(found.group, list);
+  }
+  const overlays: MarkOverlay[] = [];
+  const matrix = new THREE.Matrix4();
+  for (const [group, indices] of byGroup)
+    for (const mesh of group.meshes) {
+      const overlay = new THREE.InstancedMesh(
+        mesh.geometry,
+        markMaterial,
+        indices.length,
+      );
+      const originals = group.originals.get(mesh)!;
+      indices.forEach((index, k) =>
+        overlay.setMatrixAt(k, matrix.fromArray(originals, index * 16)),
+      );
+      overlay.userData.guids = indices.map(
+        (i) => group.mapping.instanceGuids[i],
+      );
+      overlay.matrixAutoUpdate = false;
+      overlay.matrix.copy(mesh.matrixWorld);
+      overlay.matrixWorldNeedsUpdate = true;
+      overlay.renderOrder = 1;
+      overlay.computeBoundingSphere();
+      overlay.computeBoundingBox();
+      overlay.visible = modelVisible(group.model);
+      scene.add(overlay);
+      overlays.push({ overlay, mesh, model: group.model });
+    }
+  mark = { row, overlays, isolated: false };
+  if (keepIsolated) isolateMark();
+  renderMarkCard();
+  markActiveRow();
+  syncUi();
+  if (fitView) fit(markBounds());
+}
+function markBounds() {
+  const box = new THREE.Box3();
+  for (const { overlay } of mark?.overlays ?? [])
+    if (overlay.boundingBox)
+      box.union(overlay.boundingBox.clone().applyMatrix4(overlay.matrix));
+  return box;
+}
+// Isolated mark: only its products remain, drawn in their own IFC colours.
+function isolateMark() {
+  if (!mark) return;
+  clear();
+  isolated = true;
+  mark.isolated = true;
+  for (const group of groups) group.object.visible = false;
+  for (const o of mark.overlays) o.overlay.material = o.mesh.material;
+  renderMarkCard();
+  syncUi();
+}
+let sbzhQuery = "";
+function renderSbzh() {
+  const has = sbzh.rows.length > 0;
+  el("sbzh-empty").hidden = has;
+  el("sbzh-content").hidden = !has;
+  const t = sbzh.totals;
+  const tile = (value: string, label: string) => {
+    const item = node("div", "mini-stat");
+    item.append(node("b", undefined, value), node("span", undefined, label));
+    return item;
+  };
+  el("sbzh-summary").replaceChildren(
+    ...(has
+      ? [
+          tile(fmt(t.marks, 0), plural(t.marks, "марка", "марки", "марок")),
+          tile(
+            fmt(t.products, 0),
+            plural(t.products, "изделие", "изделия", "изделий"),
+          ),
+          tile(fmt(t.volumeM3, 1), "м³ бетона"),
+          tile(fmt(t.massT, 1), "т (расчётная)"),
+        ]
+      : []),
+  );
+  el("tab-btn-sbzh").dataset.count = has ? fmt(t.products, 0) : "";
+  renderSbzhRows();
+  renderMarkCard();
+}
+function renderSbzhRows() {
+  const q = sbzhQuery.trim().toLowerCase();
+  const rows = sbzh.rows.filter(
+    (r) =>
+      !q ||
+      [r.mark, r.name, r.kind, r.concreteGrade]
+        .filter(Boolean)
+        .some((v) => v!.toLowerCase().includes(q)),
+  );
+  const body = el("sbzh-rows");
+  const shown = rows.slice(0, 1500);
+  body.replaceChildren(
+    ...shown.map((r) => {
+      const tr = node("tr");
+      tr.dataset.key = rowKey(r);
+      tr.tabIndex = 0;
+      const nameCell = node("td", "name", r.name ?? "—");
+      if (r.kind) nameCell.append(node("small", undefined, r.kind));
+      tr.append(
+        node("td", "mark", r.mark),
+        nameCell,
+        node("td", "num", fmt(r.count, 0)),
+        node("td", "num", fmt(r.volumeTotalM3, 2)),
+        node("td", "num", fmt(r.massTotalT, 1)),
+      );
+      tr.onclick = () => highlightMark(r, true);
+      tr.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          highlightMark(r, true);
+        }
+      };
+      return tr;
+    }),
+  );
+  if (!rows.length) {
+    const tr = node("tr");
+    const td = node("td", "empty-row", "Ничего не найдено");
+    td.colSpan = 5;
+    tr.append(td);
+    body.append(tr);
+  }
+  markActiveRow();
+}
+function markActiveRow() {
+  const key = mark ? rowKey(mark.row) : null;
+  for (const tr of el("sbzh-rows").querySelectorAll<HTMLElement>("tr"))
+    tr.classList.toggle("is-active", tr.dataset.key === key);
+}
+function renderMarkCard() {
+  const card = el("sbzh-active");
+  card.hidden = !mark;
+  if (!mark) return card.replaceChildren();
+  const r = mark.row;
+  const head = node("div", "sbzh-active-head");
+  head.append(
+    node("span", "badge badge-amber", r.mark),
+    node("span", "panel-text", [r.name, r.kind].filter(Boolean).join(" · ")),
+  );
+  const list = node("dl", "kv");
+  const rows: [string, string][] = [
+    ["Количество", `${fmt(r.count, 0)} шт`],
+    ["Бетон", concrete(r)],
+    ["Арматура", r.reinforcementClass ?? "—"],
+    ["Код ЭЛ", r.elementCode ?? "—"],
+    ["Объём ед.", `${span(r.unitVolumeM3)} м³`],
+    ["Объём всего", `${fmt(r.volumeTotalM3)} м³`],
+    ["Масса ед. (расч.)", `${span(r.unitMassT)} т`],
+    ["Масса всего (расч.)", `${fmt(r.massTotalT)} т`],
+    ["Модель", r.model ? modelName(r.model) : "—"],
+    ["Этажи", r.storey ?? "—"],
+  ];
+  for (const [label, value] of rows) {
+    const row = node("div", "kv-row");
+    row.append(node("dt", undefined, label), node("dd", undefined, value));
+    list.append(row);
+  }
+  const actions = node("div", "actions");
+  const button = (text: string, cls: string, onclick: () => void) => {
+    const b = node("button", `btn btn-sm ${cls}`, text);
+    b.type = "button";
+    b.onclick = onclick;
+    return b;
+  };
+  actions.append(
+    button("Показать на модели", "btn-secondary", () => fit(markBounds())),
+    mark.isolated
+      ? button("Показать всю модель", "btn-secondary", () => {
+          showAll();
+          fit();
+        })
+      : button("Изолировать марку", "btn-secondary", () => {
+          isolateMark();
+          fit(markBounds());
+        }),
+    button("Снять подсветку", "btn-ghost", clearMark),
+  );
+  card.replaceChildren(head, list, actions);
+}
+el<HTMLInputElement>("sbzh-search").oninput = (e) => {
+  sbzhQuery = (e.target as HTMLInputElement).value;
+  renderSbzhRows();
+};
+el("sbzh-csv").onclick = () =>
+  downloadCsv(
+    sbzh,
+    `СБЖ_спецификация_${(currentSet?.id ?? loadedModels[0]?.source.id ?? "модель").replace(/[^\p{L}\p{N}_-]+/gu, "_")}.csv`,
+  );
+
+// ─── Models of the set ────────────────────────────────────────
+function setModelVisible(id: string, visible: boolean) {
+  const model = loadedModels.find((m) => m.source.id === id);
+  if (!model) return;
+  model.object.visible = visible;
+  if (!visible && selected?.group.model === id) clear();
+  for (const o of mark?.overlays ?? [])
+    if (o.model === id) o.overlay.visible = visible;
+}
+function renderModels() {
+  el("set-title").textContent =
+    currentSet?.title ?? (loadedModels.length === 1 ? "Модель" : "Модели");
+  el("model-list").replaceChildren(
+    ...loadedModels.map((m) => {
+      const li = node("li", "model-row");
+      const label = node("label", "model-toggle");
+      const box = node("input");
+      box.type = "checkbox";
+      box.checked = m.object.visible;
+      box.onchange = () => setModelVisible(m.source.id, box.checked);
+      const name = node("span", "model-name", m.source.name);
+      label.append(box, name);
+      const meta = node("div", "model-meta");
+      if (m.source.discipline)
+        meta.append(node("span", "badge badge-blue", m.source.discipline));
+      const info = m.source.info;
+      meta.append(
+        node(
+          "span",
+          undefined,
+          [
+            `${fmt(m.elements, 0)} элементов`,
+            info?.triangles
+              ? `${fmt(info.triangles / 1e6, 1)} млн треуг.`
+              : null,
+            info?.glbBytes
+              ? `GLB ${fmt(info.glbBytes / 1048576, 1)} МиБ`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        ),
+      );
+      const products = sbzh.rows
+        .filter((r) => r.model === m.source.id)
+        .reduce((n, r) => n + r.count, 0);
+      if (products)
+        meta.append(
+          node("span", "badge badge-amber", `СБЖ ${fmt(products, 0)}`),
+        );
+      li.append(label, meta);
+      return li;
+    }),
+  );
+  const box = el("alignment");
+  const a = currentSet?.alignment;
+  box.hidden = !a || loadedModels.length < 2;
+  if (!a) return;
+  const ok = a.status === "OK";
+  const head = node("div", "alignment-head");
+  head.append(
+    node(
+      "span",
+      `badge ${ok ? "badge-success" : "badge-amber"}`,
+      ok ? "Совмещение: OK" : "Совмещение: проверить",
+    ),
+  );
+  const pairs = a.pairs.map((p) =>
+    node(
+      "p",
+      "panel-text",
+      `${p.models.map(modelName).join(" ↔ ")}: перекрытие в плане ${fmt(p.planOverlapRatio * 100, 0)} %, ` +
+        (p.maxStoreyElevationDeltaMeters === null
+          ? "общих этажей нет"
+          : `расхождение отметок этажей ${fmt(p.maxStoreyElevationDeltaMeters * 1000, 1)} мм`),
+    ),
+  );
+  box.replaceChildren(head, node("p", "panel-text", a.method), ...pairs);
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────
+const tabIds = ["element", "sbzh", "models", "section", "bench"] as const;
+type Tab = (typeof tabIds)[number];
+const panelId = (t: Tab) => (t === "element" ? "inspector" : `tab-${t}`);
+function showTab(tab: Tab) {
+  for (const t of tabIds) {
+    const button = el(`tab-btn-${t}`);
+    button.setAttribute("aria-selected", String(t === tab));
+    button.tabIndex = t === tab ? 0 : -1;
+    el(panelId(t)).hidden = t !== tab;
+  }
+}
+for (const [i, t] of tabIds.entries()) {
+  const button = el(`tab-btn-${t}`);
+  button.onclick = () => showTab(t);
+  button.onkeydown = (e) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    const next = tabIds[(i + step + tabIds.length) % tabIds.length];
+    showTab(next);
+    el(`tab-btn-${next}`).focus();
+  };
+}
+showTab("element");
 function pick(
   clientX: number,
   clientY: number,
@@ -410,30 +955,35 @@ function pick(
     camera,
   );
   const before = performance.now();
-  const hits = raycaster.intersectObjects(
-    meshes.filter((m) => meshGroups.get(m)!.object.visible),
-    false,
-  );
+  const targets: THREE.Object3D[] = meshes.filter((m) => isShown(m));
+  if (mark?.isolated)
+    for (const o of mark.overlays)
+      if (o.overlay.visible) targets.push(o.overlay);
+  const hits = raycaster.intersectObjects(targets, false);
   lastRaycastMs = performance.now() - before;
-  const hit = hits.find(
-    (h) =>
-      h.instanceId !== undefined &&
-      !hidden.has(
-        guidAt(
-          meshGroups.get(h.object as THREE.InstancedMesh)!.mapping,
-          h.instanceId,
-        ),
-      ),
-  );
+  const resolve = (h: THREE.Intersection) => {
+    if (h.instanceId === undefined) return null;
+    const markHit = mark?.overlays.find((o) => o.overlay === h.object);
+    if (markHit) {
+      const guid = markHit.overlay.userData.guids[h.instanceId] as string;
+      return guidIndex.get(guid) ?? null;
+    }
+    const group = meshGroups.get(h.object as THREE.InstancedMesh);
+    return group ? { group, index: h.instanceId } : null;
+  };
+  const hit = hits
+    .filter((h) => !clippedAway(h.point))
+    .map(resolve)
+    .find((r) => r !== null && !hidden.has(guidAt(r.group.mapping, r.index)));
   return measure(
     "selection",
     () => {
       if (hit) {
-        select(
-          meshGroups.get(hit.object as THREE.InstancedMesh)!,
-          hit.instanceId!,
-        );
-        if (focus) focusSelected();
+        select(hit.group, hit.index);
+        if (focus) {
+          focusSelected();
+          showTab("element");
+        }
       } else if (!isolated) clear();
     },
     started,
@@ -471,6 +1021,7 @@ function disposeObject(object: THREE.Object3D) {
   for (const t of textures) t.dispose();
 }
 function unload() {
+  clearMark();
   clear();
   if (root) {
     scene.remove(root);
@@ -480,14 +1031,18 @@ function unload() {
   groups = [];
   meshes = [];
   meshGroups.clear();
+  guidIndex.clear();
+  loadedModels = [];
   hidden.clear();
   hiddenStack.length = 0;
   isolated = false;
   focusAnimation = null;
+  sbzh = combine([]);
+  sbzhByKey.clear();
+  setSectionEnabled(false);
   syncUi();
 }
-async function fetchModel(url: string, signal: AbortSignal) {
-  const start = performance.now();
+async function fetchModel(url: string, signal: AbortSignal, label = "") {
   const response = await fetch(url, {
     signal,
     cache: params.has("cold") ? "no-store" : "default",
@@ -503,7 +1058,7 @@ async function fetchModel(url: string, signal: AbortSignal) {
     chunks.push(value);
     received += value.length;
     setStatus(
-      `Загрузка GLB: ${(received / 1048576).toFixed(1)} МиБ${total ? " / " + (total / 1048576).toFixed(1) : ""}`,
+      `${label}Загрузка GLB: ${(received / 1048576).toFixed(1)} МиБ${total ? " / " + (total / 1048576).toFixed(1) : ""}`,
       "loading",
       total ? received / total : undefined,
     );
@@ -514,18 +1069,74 @@ async function fetchModel(url: string, signal: AbortSignal) {
     all.set(chunk, offset);
     offset += chunk.length;
   }
-  timing.downloadMs = performance.now() - start;
-  timing.downloadBytes = received;
   return all.buffer;
 }
-async function load(model: string | File, sidecar?: File) {
+async function fetchJson<T>(
+  source: string | File,
+  signal: AbortSignal,
+): Promise<T | null> {
+  if (typeof source !== "string") return JSON.parse(await source.text()) as T;
+  const result = await fetch(source, {
+    signal,
+    cache: params.has("cold") ? "no-store" : "default",
+  });
+  return result.ok ? ((await result.json()) as T) : null;
+}
+/** Registers every InstancedMesh of one model; returns its element count. */
+function registerGroups(object: THREE.Object3D, model: string) {
+  const logical = new Map<THREE.Object3D, LogicalGroup>();
+  object.traverse((child) => {
+    if (!(child instanceof THREE.InstancedMesh)) return;
+    const found = mappingFor(child);
+    if (!found)
+      throw new Error(`FAIL: у меша нет IFC-сопоставления ${child.name}`);
+    let group = logical.get(found.object);
+    if (!group) {
+      group = {
+        model,
+        object: found.object,
+        mapping: found.mapping,
+        meshes: [],
+        originals: new Map(),
+      };
+      logical.set(found.object, group);
+    }
+    if (child.count !== group.mapping.instanceGuids.length)
+      throw new Error("FAIL: число экземпляров не совпадает с числом GUID");
+    group.meshes.push(child);
+    group.originals.set(child, new Float32Array(child.instanceMatrix.array));
+    meshes.push(child);
+    meshGroups.set(child, group);
+    child.computeBoundingSphere();
+    child.computeBoundingBox();
+  });
+  let count = 0;
+  for (const group of logical.values()) {
+    groups.push(group);
+    group.mapping.instanceGuids.forEach((guid, index) => {
+      if (guidIndex.has(guid))
+        throw new Error("FAIL: повторяющиеся GUID в сопоставлении");
+      guidIndex.set(guid, { group, index });
+    });
+    count += group.mapping.instanceGuids.length;
+  }
+  return count;
+}
+async function load(
+  sources: ModelSource[],
+  title: string,
+  reportUrl: string,
+  set: ModelSet | null = null,
+) {
   const token = ++generation;
   networkController?.abort();
   networkController = new AbortController();
+  const signal = networkController.signal;
   loading = true;
   unload();
   metadata = { schemaVersion: 1, elements: {} };
-  modelUrl = typeof model === "string" ? model : model.name;
+  currentSet = set;
+  modelUrl = reportUrl;
   setStatus("Загрузка…", "loading");
   type Decode = (
     buffer: ArrayBuffer,
@@ -553,62 +1164,61 @@ async function load(model: string | File, sidecar?: File) {
     return originalDecode(...args);
   };
   try {
-    const bytes =
-      typeof model === "string"
-        ? await fetchModel(model, networkController.signal)
-        : await model.arrayBuffer();
-    if (token !== generation) return;
-    setStatus("Разбор GLB и распаковка Draco…", "loading");
-    const start = performance.now();
-    const gltf = await loader.parseAsync(bytes, "");
-    timing.glbParseIncludingDracoMs = performance.now() - start;
+    root = new THREE.Group();
+    root.name = title;
+    scene.add(root);
+    const perModel: Record<string, unknown>[] = [];
+    let downloadMs = 0,
+      downloadBytes = 0,
+      parseMs = 0;
+    for (const [i, source] of sources.entries()) {
+      const label =
+        sources.length > 1
+          ? `${source.name} (${i + 1}/${sources.length}) · `
+          : "";
+      const t0 = performance.now();
+      const bytes =
+        typeof source.glb === "string"
+          ? await fetchModel(source.glb, signal, label)
+          : await source.glb.arrayBuffer();
+      const fetched = performance.now() - t0;
+      if (token !== generation) return;
+      setStatus(`${label}Разбор GLB и распаковка Draco…`, "loading");
+      const start = performance.now();
+      const gltf = await loader.parseAsync(bytes, "");
+      const parsed = performance.now() - start;
+      if (token !== generation) {
+        disposeObject(gltf.scene);
+        return;
+      }
+      gltf.scene.name = source.id;
+      root.add(gltf.scene);
+      gltf.scene.updateMatrixWorld(true);
+      const elements = registerGroups(gltf.scene, source.id);
+      loadedModels.push({ source, object: gltf.scene, elements });
+      downloadMs += fetched;
+      downloadBytes += bytes.byteLength;
+      parseMs += parsed;
+      perModel.push({
+        id: source.id,
+        downloadMs: fetched,
+        downloadBytes: bytes.byteLength,
+        glbParseIncludingDracoMs: parsed,
+        elements,
+      });
+    }
+    timing.downloadMs = downloadMs;
+    timing.downloadBytes = downloadBytes;
+    timing.glbParseIncludingDracoMs = parseMs;
+    timing.models = perModel;
     timing.dracoRequests = stats(decodeTimes);
     timing.dracoTimingDefinition =
       "Per primitive request-to-callback; overlapping worker tasks, do not sum as wall time";
-    if (token !== generation) {
-      disposeObject(gltf.scene);
-      return;
-    }
-    root = gltf.scene;
-    scene.add(root);
-    root.updateMatrixWorld(true);
-    const logical = new Map<THREE.Object3D, LogicalGroup>();
-    root.traverse((object) => {
-      if (!(object instanceof THREE.InstancedMesh)) return;
-      const found = mappingFor(object);
-      if (!found)
-        throw new Error(`FAIL: у меша нет IFC-сопоставления ${object.name}`);
-      let group = logical.get(found.object);
-      if (!group) {
-        group = {
-          object: found.object,
-          mapping: found.mapping,
-          meshes: [],
-          originals: new Map(),
-        };
-        logical.set(found.object, group);
-      }
-      if (object.count !== group.mapping.instanceGuids.length)
-        throw new Error("FAIL: число экземпляров не совпадает с числом GUID");
-      group.meshes.push(object);
-      group.originals.set(
-        object,
-        new Float32Array(object.instanceMatrix.array),
-      );
-      meshes.push(object);
-      meshGroups.set(object, group);
-      object.computeBoundingSphere();
-      object.computeBoundingBox();
-    });
-    groups = [...logical.values()];
-    const guids = groups.flatMap((g) => g.mapping.instanceGuids);
-    if (new Set(guids).size !== guids.length)
-      throw new Error("FAIL: повторяющиеся GUID в сопоставлении");
-    if (!guids.length)
+    if (!guidIndex.size)
       throw new Error("FAIL: нет доступных для выбора элементов");
     modelBounds.setFromObject(root);
     fit();
-    timing.mappingCount = guids.length;
+    timing.mappingCount = guidIndex.size;
     timing.geometryGroups = groups.length;
     const upload = performance.now();
     renderer.render(scene, camera);
@@ -616,23 +1226,42 @@ async function load(model: string | File, sidecar?: File) {
     timing.gpuUploadMs = null;
     timing.gpuUploadNote =
       "Not separately measurable without GPU timing instrumentation";
-    renderSummary(guids.length, groups.length);
-    if (sidecar) {
-      metadata = JSON.parse(await sidecar.text()) as Metadata;
-    } else if (typeof model === "string") {
-      const url = new URL(model, location.href);
-      url.pathname = url.pathname.replace(/[^/]+$/, "metadata.json");
-      const start = performance.now();
-      const result = await fetch(url, {
-        signal: networkController.signal,
-        cache: params.has("cold") ? "no-store" : "default",
-      });
-      if (result.ok) metadata = (await result.json()) as Metadata;
-      timing.metadataFetchAndParseMs = performance.now() - start;
+    renderSummary(guidIndex.size, groups.length, loadedModels.length);
+    renderModels();
+    renderSectionPanel();
+    setStatus("Загрузка свойств элементов…", "loading");
+    const start = performance.now();
+    const parts: SbzhData[] = [];
+    for (const source of sources) {
+      // Without an explicit sidecar a URL model looks for metadata.json next to it.
+      const sidecar =
+        source.metadata !== undefined
+          ? source.metadata
+          : typeof source.glb === "string"
+            ? new URL(source.glb, location.href).href.replace(
+                /[^/]+$/,
+                "metadata.json",
+              )
+            : null;
+      if (sidecar) {
+        const md = await fetchJson<Metadata>(sidecar, signal);
+        if (md) Object.assign(metadata.elements, md.elements);
+      }
+      if (source.sbzh) {
+        const data = await fetchJson<SbzhData>(source.sbzh, signal);
+        if (data) parts.push({ ...data, model: data.model ?? source.id });
+      }
+      if (token !== generation) return;
     }
+    timing.metadataFetchAndParseMs = performance.now() - start;
+    sbzh = combine(parts);
+    for (const row of sbzh.rows) sbzhByKey.set(rowKey(row), row);
+    renderSbzh();
     if (token !== generation) return;
     setStatus(
-      `Готово · ${modelUrl.split("/").at(-1)} · каждый экземпляр имеет GlobalId`,
+      sources.length === 1 && !set
+        ? `Готово · ${modelUrl.split("/").at(-1)} · каждый экземпляр имеет GlobalId`
+        : `Готово · ${title} · ${loadedModels.length} ${plural(loadedModels.length, "модель", "модели", "моделей")} · каждый экземпляр имеет GlobalId`,
       "ready",
     );
     loading = false;
@@ -724,6 +1353,7 @@ async function benchmark() {
   if (!root || loading || benchmarkRunning) return;
   benchmarkRunning = true;
   el<HTMLButtonElement>("benchmark").disabled = true;
+  clearMark();
   showAll();
   clear();
   fit();
@@ -873,6 +1503,7 @@ el("fit").onclick = () =>
 el("clear").onclick = () => {
   if (isolated) showAll();
   clear();
+  clearMark();
 };
 el("isolate").onclick = () => void measure("isolate", isolate);
 el("hide").onclick = () => void measure("hide", hide);
@@ -891,11 +1522,103 @@ el("download").onclick = () => downloadReport(lastReport);
 async function files(list: File[]) {
   const model = list.find((f) => f.name.toLowerCase().endsWith(".glb"));
   const md = list.find((f) => f.name === "metadata.json");
-  if (model) await load(model, md);
+  if (model)
+    await load(
+      [{ id: model.name, name: model.name, glb: model, metadata: md ?? null }],
+      model.name,
+      model.name,
+    );
   else if (md) {
     metadata = JSON.parse(await md.text());
     if (selected) select(selected.group, selected.index);
   }
+}
+const single = (url: string): ModelSource[] => {
+  const name = decodeURIComponent(url.split("/").at(-1) ?? url);
+  return [{ id: name, name, glb: url }];
+};
+async function loadSet(url: string) {
+  try {
+    const response = await fetch(url, {
+      cache: params.has("cold") ? "no-store" : "default",
+    });
+    if (!response.ok)
+      throw new Error(`комплект: ошибка HTTP ${response.status}`);
+    const set = (await response.json()) as ModelSet;
+    const base = new URL(url, location.href);
+    const resolve = (path?: string | null) =>
+      path ? new URL(path, base).href : null;
+    await load(
+      set.models.map((m) => ({
+        id: m.id,
+        name: m.name,
+        discipline: m.discipline,
+        glb: resolve(m.glb)!,
+        metadata: resolve(m.metadata),
+        sbzh: resolve(m.sbzh),
+        info: m,
+      })),
+      set.title,
+      url,
+      set,
+    );
+  } catch (error) {
+    setStatus(
+      `Ошибка: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
+  }
+}
+interface Catalog {
+  default?: string;
+  sets: { id: string; title: string; url: string }[];
+}
+async function start() {
+  const catalog = await fetch("/models/catalog.json", { cache: "no-store" })
+    .then((r) => (r.ok ? (r.json() as Promise<Catalog>) : null))
+    .catch(() => null);
+  const setUrl = (s: { url: string }) => `/models/${s.url}`;
+  const requested = params.get("set");
+  const model = params.get("model");
+  const chosen =
+    catalog?.sets.find((s) => setUrl(s) === requested) ??
+    (!requested && !model
+      ? (catalog?.sets.find((s) => s.id === catalog.default) ??
+        catalog?.sets[0])
+      : undefined);
+  if (catalog && catalog.sets.length > 1) {
+    const select = el<HTMLSelectElement>("set-select");
+    select.replaceChildren(
+      ...catalog.sets.map((s) => {
+        const option = node("option", undefined, s.title);
+        option.value = setUrl(s);
+        return option;
+      }),
+    );
+    if (model) {
+      const option = node(
+        "option",
+        undefined,
+        `Файл: ${model.split("/").at(-1)}`,
+      );
+      option.value = "";
+      select.prepend(option);
+    }
+    select.value = chosen ? setUrl(chosen) : (requested ?? "");
+    select.onchange = () => {
+      if (select.value)
+        location.search = `?set=${encodeURIComponent(select.value)}`;
+    };
+    (select.parentElement as HTMLElement).hidden = false;
+  }
+  if (model) return load(single(model), model, model);
+  if (requested && !chosen) return loadSet(requested);
+  if (chosen) return loadSet(setUrl(chosen));
+  return load(
+    single("/models/km/model.glb"),
+    "model.glb",
+    "/models/km/model.glb",
+  );
 }
 el<HTMLInputElement>("files").onchange = (e) =>
   void files(Array.from((e.target as HTMLInputElement).files ?? []));
@@ -917,7 +1640,7 @@ window.addEventListener(
   },
   { once: true },
 );
-void load(params.get("model") ?? "/models/km/model.glb");
+void start();
 // Explicitly enabled developer diagnostics for reproducible pointer-event tests.
 if (params.get("test") === "1") {
   const diagnostics = {
@@ -927,6 +1650,25 @@ if (params.get("test") === "1") {
       highlightedPrimitives: selectionObjects.length,
       isolated,
       hiddenCount: hidden.size,
+      models: loadedModels.map((m) => ({
+        id: m.source.id,
+        visible: m.object.visible,
+        elements: m.elements,
+      })),
+      mark: mark
+        ? {
+            mark: mark.row.mark,
+            count: mark.row.count,
+            isolated: mark.isolated,
+          }
+        : null,
+      sbzhProducts: sbzh.totals.products,
+      section: {
+        enabled: section.enabled,
+        axis: section.axis,
+        value: section.value,
+        flipped: section.flipped,
+      },
       focusing: focusAnimation !== null,
       camera: camera.position.toArray(),
       target: controls.target.toArray(),
