@@ -27,6 +27,12 @@ import {
   type SbzhSet,
 } from "./sbzh";
 import { stats, latencyStatus, downloadReport } from "./performance";
+import {
+  buildBatches,
+  setInstanceVisible,
+  SOURCE_LAYER,
+  type BatchEntry,
+} from "./batching";
 import "./style.css";
 const el = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -233,6 +239,22 @@ let currentSet: ModelSet | null = null;
 const guidIndex = new Map<string, { group: LogicalGroup; index: number }>();
 let sbzh: SbzhSet = combine([]);
 const sbzhByKey = new Map<string, SbzhRow>();
+// Draw-call batching (see batching.ts); ?batch=0 renders the source meshes.
+const useBatching = params.get("batch") !== "0";
+const batchEntries = new Map<THREE.InstancedMesh, BatchEntry>();
+let batchContainers: THREE.Group[] = [];
+let batchMeshes: THREE.BatchedMesh[] = [];
+function setBatchesVisible(visible: boolean) {
+  for (const container of batchContainers) container.visible = visible;
+}
+function setElementVisible(
+  group: LogicalGroup,
+  index: number,
+  visible: boolean,
+) {
+  for (const mesh of group.meshes)
+    setInstanceVisible(batchEntries, mesh, index, visible);
+}
 let metadata: Metadata = { schemaVersion: 1, elements: {} },
   selected: Selected | null = null;
 const hidden = new Set<string>(),
@@ -277,6 +299,9 @@ let isolated = false,
 let networkController: AbortController | null = null;
 const timing: Record<string, unknown> = {};
 const raycaster = new THREE.Raycaster();
+// Source meshes of batched elements live on SOURCE_LAYER: hidden from the
+// camera, still pickable.
+raycaster.layers.enable(SOURCE_LAYER);
 const meshGroups = new Map<THREE.InstancedMesh, LogicalGroup>();
 const frameTimes: number[] = [];
 let lastFrame = performance.now(),
@@ -440,14 +465,20 @@ function isolate() {
   clearMark();
   isolated = true;
   for (const group of groups) group.object.visible = false;
+  setBatchesVisible(false);
   setSelectionMaterial(false);
   syncUi();
 }
 function showAll() {
   isolated = false;
   setSelectionMaterial(true);
+  for (const guid of hidden) {
+    const found = guidIndex.get(guid);
+    if (found) setElementVisible(found.group, found.index, true);
+  }
   hidden.clear();
   hiddenStack.length = 0;
+  setBatchesVisible(true);
   for (const group of groups) {
     group.object.visible = true;
     for (const mesh of group.meshes) {
@@ -473,6 +504,7 @@ function hide() {
   const { group, index, guid } = selected;
   hidden.add(guid);
   hiddenStack.push(selected);
+  setElementVisible(group, index, false);
   for (const mesh of group.meshes) {
     mesh.setMatrixAt(index, new THREE.Matrix4().makeScale(0, 0, 0));
     mesh.instanceMatrix.needsUpdate = true;
@@ -485,6 +517,7 @@ function undoHide() {
   const last = hiddenStack.pop();
   if (!last) return;
   hidden.delete(last.guid);
+  setElementVisible(last.group, last.index, true);
   const offset = last.index * 16;
   for (const mesh of last.group.meshes) {
     mesh.instanceMatrix.array.set(
@@ -626,6 +659,7 @@ function clearMark() {
   if (mark.isolated) {
     isolated = false;
     for (const group of groups) group.object.visible = true;
+    setBatchesVisible(true);
   }
   for (const o of mark.overlays) {
     scene.remove(o.overlay);
@@ -695,6 +729,7 @@ function isolateMark() {
   isolated = true;
   mark.isolated = true;
   for (const group of groups) group.object.visible = false;
+  setBatchesVisible(false);
   for (const o of mark.overlays) o.overlay.material = o.mesh.material;
   renderMarkCard();
   syncUi();
@@ -1023,6 +1058,10 @@ function disposeObject(object: THREE.Object3D) {
 function unload() {
   clearMark();
   clear();
+  for (const batch of batchMeshes) batch.dispose();
+  batchMeshes = [];
+  batchContainers = [];
+  batchEntries.clear();
   if (root) {
     scene.remove(root);
     disposeObject(root);
@@ -1196,6 +1235,30 @@ async function load(
       gltf.scene.updateMatrixWorld(true);
       const elements = registerGroups(gltf.scene, source.id);
       loadedModels.push({ source, object: gltf.scene, elements });
+      let batching: Record<string, unknown> = { enabled: false };
+      if (useBatching) {
+        setStatus(`${label}Подготовка пакетной отрисовки…`, "loading");
+        const t = performance.now();
+        const sources = groups
+          .filter((g) => g.model === source.id)
+          .flatMap((g) => g.meshes);
+        const built = buildBatches(
+          gltf.scene,
+          sources,
+          (mesh) => meshGroups.get(mesh)!.originals.get(mesh)!,
+        );
+        for (const [mesh, entry] of built.entries)
+          batchEntries.set(mesh, entry);
+        batchContainers.push(built.container);
+        batchMeshes.push(...built.batches);
+        batching = {
+          enabled: true,
+          buildMs: performance.now() - t,
+          sourceMeshes: built.sourceDrawCalls,
+          batches: built.batches.length,
+          unbatchedMeshes: sources.length - built.entries.size,
+        };
+      }
       downloadMs += fetched;
       downloadBytes += bytes.byteLength;
       parseMs += parsed;
@@ -1205,12 +1268,16 @@ async function load(
         downloadBytes: bytes.byteLength,
         glbParseIncludingDracoMs: parsed,
         elements,
+        batching,
       });
     }
     timing.downloadMs = downloadMs;
     timing.downloadBytes = downloadBytes;
     timing.glbParseIncludingDracoMs = parseMs;
     timing.models = perModel;
+    timing.batching = useBatching
+      ? "THREE.BatchedMesh per material and model (WEBGL_multi_draw)"
+      : "disabled (?batch=0): one draw call per instanced geometry primitive";
     timing.dracoRequests = stats(decodeTimes);
     timing.dracoTimingDefinition =
       "Per primitive request-to-callback; overlapping worker tasks, do not sum as wall time";
@@ -1680,6 +1747,27 @@ if (params.get("test") === "1") {
         0,
       ),
     }),
+    // Synchronous render benchmark: n frames, each waiting for the GPU.
+    renderCost: (n = 30) => {
+      const gl = renderer.getContext();
+      renderer.render(scene, camera);
+      gl.finish();
+      const times: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t = performance.now();
+        renderer.render(scene, camera);
+        gl.finish();
+        times.push(performance.now() - t);
+      }
+      return {
+        batching: useBatching,
+        batches: batchMeshes.length,
+        drawCalls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        frameMs: stats(times),
+        multiDraw: Boolean(gl.getExtension("WEBGL_multi_draw")),
+      };
+    },
     targets: () => {
       const result: { x: number; y: number; guid: string }[] = [];
       const rect = canvas.getBoundingClientRect();
