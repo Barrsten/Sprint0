@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "file": "К1-КМ-0.ifc",
+  "name": "К1-КМ-0",
+  "ifcSchema": "IFC4",
+  "spatial": {
+    "project": "МДИЛ",
+    "site": "МДИЛ_ЗМ02",
+    "building": "Производственно-административный корпус",
+    "storeys": [
+      {
+        "name": "-1_подземный этаж_основной",
+        "guid": "3K3fIOjkf9APf$_PSUyKcx",
+        "elevationMeters": 157.939999999995
+      },
+      {
+        "name": "1_этаж_основной",
+        "guid": "02WHiTGJ1AVf5gTK4xAuxr",
+        "elevationMeters": 159.99999999999602
+      },
+      {
+        "name": "Крыша",
+        "guid": "2krUihkVn1uw35z8hK$vzD",
+        "elevationMeters": 172.79999999999492
+      }
+    ]
+  },
+  "boundingBoxMeters": [
+    [
+      -14644.873061779637,
+      15440.175168377462,
+      158.19991190114294
+    ],
+    [
+      -14418.930899743818,
+      15640.725417531445,
+      178.5480000252749
+    ]
+  ],
+  "originMeters": [
+    -14531.901980761728,
+    15540.450292954454,
+    168.3739559632089
+  ],
+  "elements": 31706,
+  "triangles": 8298115,
+  "types": {
+    "IfcSlab": 24,
+    "IfcMember": 7325,
+    "IfcBeam": 9899,
+    "IfcPlate": 13985,
+    "IfcElementAssembly": 64,
+    "IfcColumn": 132,
+    "IfcStair": 57,
+    "IfcFastener": 220
+  },
+  "sbzh": {
+    "marks": 0,
+    "products": 0,
+    "volumeM3": 0,
+    "massT": 0,
+    "withoutVolume": 0
+  },
+  "nonCriticalIssues": []
+}

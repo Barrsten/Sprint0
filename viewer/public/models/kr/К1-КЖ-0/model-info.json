@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "file": "К1-КЖ-0.ifc",
+  "name": "К1-КЖ-0",
+  "ifcSchema": "IFC4",
+  "spatial": {
+    "project": "МДИЛ",
+    "site": "МДИЛ_ЗМ02",
+    "building": "Производственно-административный корпус",
+    "storeys": [
+      {
+        "name": "-2_подземный этаж_основной",
+        "guid": "3yBcJeH_DDUwyq_dg8b7jb",
+        "elevationMeters": 156.39999999999674
+      },
+      {
+        "name": "-1_подземный этаж_основной",
+        "guid": "3yBcJeH_DDUwyq_dg8b7ja",
+        "elevationMeters": 157.93999999999676
+      },
+      {
+        "name": "1_этаж_основной",
+        "guid": "3yBcJeH_DDUwyq_dg8b7ju",
+        "elevationMeters": 159.99999999999673
+      },
+      {
+        "name": "2_этаж_основной",
+        "guid": "3yBcJeH_DDUwyq_dg8b7jv",
+        "elevationMeters": 164.19999999999675
+      },
+      {
+        "name": "3_этаж_основной",
+        "guid": "3yBcJeH_DDUwyq_dg8b7jc",
+        "elevationMeters": 168.39999999999674
+      },
+      {
+        "name": "Крыша",
+        "guid": "3yBcJeH_DDUwyq_dg8b7jd",
+        "elevationMeters": 172.79999999999674
+      }
+    ]
+  },
+  "boundingBoxMeters": [
+    [
+      -14647.1576046172,
+      15439.133938846027,
+      154.14999999999674
+    ],
+    [
+      -14418.351147062074,
+      15653.749474586957,
+      176.99999999999676
+    ]
+  ],
+  "originMeters": [
+    -14532.754375839637,
+    15546.441706716492,
+    165.57499999999675
+  ],
+  "elements": 8643,
+  "triangles": 2098074,
+  "types": {
+    "IfcColumn": 502,
+    "IfcWall": 1346,
+    "IfcSlab": 3890,
+    "IfcBeam": 736,
+    "IfcFooting": 2100,
+    "IfcStairFlight": 27,
+    "IfcStair": 2,
+    "IfcRampFlight": 40
+  },
+  "sbzh": {
+    "marks": 1250,
+    "products": 7503,
+    "volumeM3": 20153.73344250164,
+    "massT": 50384.33360625427,
+    "withoutVolume": 0
+  },
+  "nonCriticalIssues": [
+    {
+      "expressId": 565260,
+      "guid": "2Zal$hTRPBeQRYs6tOQaDk",
+      "ifcType": "IfcSlab",
+      "reason": "DEGENERATE_TRIANGLES_REMOVED",
+      "severity": "NON_CRITICAL",
+      "removedTriangles": 1,
+      "remainingTriangles": 5599
+    },
+    {
+      "expressId": 118873,
+      "guid": "30$lKKczn0SAo8zzqnKIAZ",
+      "ifcType": "IfcSlab",
+      "reason": "DEGENERATE_TRIANGLES_REMOVED",
+      "severity": "NON_CRITICAL",
+      "removedTriangles": 482,
+      "remainingTriangles": 63627
+    }
+  ]
+}

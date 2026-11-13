@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "id": "kr",
+  "title": "МДИЛ ЗМ02 · КР (КЖ + КМ) · СБЖ",
+  "created": "2026-11-12T19:36:36.224954+00:00",
+  "models": [
+    {
+      "id": "К1-КЖ-0",
+      "name": "К1-КЖ-0",
+      "discipline": "КЖ",
+      "glb": "К1-КЖ-0/model.glb",
+      "metadata": "К1-КЖ-0/metadata.json",
+      "sbzh": "К1-КЖ-0/sbzh.json",
+      "info": "К1-КЖ-0/model-info.json",
+      "elements": 8643,
+      "triangles": 2098074,
+      "glbBytes": 15433680,
+      "boundingBoxMeters": [
+        [
+          -14647.1576046172,
+          15439.133938846027,
+          154.14999999999674
+        ],
+        [
+          -14418.351147062074,
+          15653.749474586957,
+          176.99999999999676
+        ]
+      ],
+      "storeys": [
+        {
+          "name": "-2_подземный этаж_основной",
+          "guid": "3yBcJeH_DDUwyq_dg8b7jb",
+          "elevationMeters": 156.39999999999674
+        },
+        {
+          "name": "-1_подземный этаж_основной",
+          "guid": "3yBcJeH_DDUwyq_dg8b7ja",
+          "elevationMeters": 157.93999999999676
+        },
+        {
+          "name": "1_этаж_основной",
+          "guid": "3yBcJeH_DDUwyq_dg8b7ju",
+          "elevationMeters": 159.99999999999673
+        },
+        {
+          "name": "2_этаж_основной",
+          "guid": "3yBcJeH_DDUwyq_dg8b7jv",
+          "elevationMeters": 164.19999999999675
+        },
+        {
+          "name": "3_этаж_основной",
+          "guid": "3yBcJeH_DDUwyq_dg8b7jc",
+          "elevationMeters": 168.39999999999674
+        },
+        {
+          "name": "Крыша",
+          "guid": "3yBcJeH_DDUwyq_dg8b7jd",
+          "elevationMeters": 172.79999999999674
+        }
+      ],
+      "sbzhTotals": {
+        "marks": 1250,
+        "products": 7503,
+        "volumeM3": 20153.73344250164,
+        "massT": 50384.33360625427,
+        "withoutVolume": 0
+      },
+      "nonCriticalIssues": 2
+    },
+    {
+      "id": "К1-КМ-0",
+      "name": "К1-КМ-0",
+      "discipline": "КМ",
+      "glb": "К1-КМ-0/model.glb",
+      "metadata": "К1-КМ-0/metadata.json",
+      "sbzh": null,
+      "info": "К1-КМ-0/model-info.json",
+      "elements": 31706,
+      "triangles": 8298115,
+      "glbBytes": 7690692,
+      "boundingBoxMeters": [
+        [
+          -14644.873061779637,
+          15440.175168377462,
+          158.19991190114294
+        ],
+        [
+          -14418.930899743818,
+          15640.725417531445,
+          178.5480000252749
+        ]
+      ],
+      "storeys": [
+        {
+          "name": "-1_подземный этаж_основной",
+          "guid": "3K3fIOjkf9APf$_PSUyKcx",
+          "elevationMeters": 157.939999999995
+        },
+        {
+          "name": "1_этаж_основной",
+          "guid": "02WHiTGJ1AVf5gTK4xAuxr",
+          "elevationMeters": 159.99999999999602
+        },
+        {
+          "name": "Крыша",
+          "guid": "2krUihkVn1uw35z8hK$vzD",
+          "elevationMeters": 172.79999999999492
+        }
+      ],
+      "sbzhTotals": {
+        "marks": 0,
+        "products": 0,
+        "volumeM3": 0,
+        "massT": 0,
+        "withoutVolume": 0
+      },
+      "nonCriticalIssues": 0
+    }
+  ],
+  "storeys": [
+    {
+      "name": "-2_подземный этаж_основной",
+      "guid": "3yBcJeH_DDUwyq_dg8b7jb",
+      "elevationMeters": 156.39999999999674,
+      "models": [
+        "К1-КЖ-0"
+      ]
+    },
+    {
+      "name": "-1_подземный этаж_основной",
+      "guid": "3yBcJeH_DDUwyq_dg8b7ja",
+      "elevationMeters": 157.93999999999676,
+      "models": [
+        "К1-КЖ-0",
+        "К1-КМ-0"
+      ]
+    },
+    {
+      "name": "1_этаж_основной",
+      "guid": "3yBcJeH_DDUwyq_dg8b7ju",
+      "elevationMeters": 159.99999999999673,
+      "models": [
+        "К1-КЖ-0",
+        "К1-КМ-0"
+      ]
+    },
+    {
+      "name": "2_этаж_основной",
+      "guid": "3yBcJeH_DDUwyq_dg8b7jv",
+      "elevationMeters": 164.19999999999675,
+      "models": [
+        "К1-КЖ-0"
+      ]
+    },
+    {
+      "name": "3_этаж_основной",
+      "guid": "3yBcJeH_DDUwyq_dg8b7jc",
+      "elevationMeters": 168.39999999999674,
+      "models": [
+        "К1-КЖ-0"
+      ]
+    },
+    {
+      "name": "Крыша",
+      "guid": "3yBcJeH_DDUwyq_dg8b7jd",
+      "elevationMeters": 172.79999999999674,
+      "models": [
+        "К1-КЖ-0",
+        "К1-КМ-0"
+      ]
+    }
+  ],
+  "alignment": {
+    "method": "Модели совмещаются в исходных мировых координатах IFC без сдвигов. Контроль: пересечение габаритов в плане и совпадение отметок одноимённых этажей (допуск 10 мм).",
+    "status": "OK",
+    "pairs": [
+      {
+        "models": [
+          "К1-КЖ-0",
+          "К1-КМ-0"
+        ],
+        "planOverlapRatio": 1.0,
+        "commonStoreys": [
+          "-1_подземный этаж_основной",
+          "1_этаж_основной",
+          "Крыша"
+        ],
+        "maxStoreyElevationDeltaMeters": 1.8189894035458565e-12,
+        "status": "OK"
+      }
+    ]
+  },
+  "sbzh": {
+    "marks": 1250,
+    "products": 7503,
+    "volumeM3": 20153.73344250164,
+    "massT": 50384.33360625427
+  }
+}
