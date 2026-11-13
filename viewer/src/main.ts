@@ -1646,6 +1646,13 @@ async function start() {
     .catch(() => null);
   const setUrl = (s: { url: string }) => `/models/${s.url}`;
   const requested = params.get("set");
+  // Ignore the old five-beam demo model.
+  if (params.get("model") === "/models/small/model.glb") {
+    params.delete("model");
+    const url = new URL(location.href);
+    url.searchParams.delete("model");
+    history.replaceState(null, "", url.href);
+  }
   const model = params.get("model");
   const chosen =
     catalog?.sets.find((s) => setUrl(s) === requested) ??
@@ -1681,11 +1688,7 @@ async function start() {
   if (model && !requested) return load(single(model), model, model);
   if (requested && !chosen) return loadSet(requested);
   if (chosen) return loadSet(setUrl(chosen));
-  return load(
-    single("/models/km/model.glb"),
-    "model.glb",
-    "/models/km/model.glb",
-  );
+  return loadSet("/models/kr/set.json");
 }
 el<HTMLInputElement>("files").onchange = (e) =>
   void files(Array.from((e.target as HTMLInputElement).files ?? []));
