@@ -1678,7 +1678,7 @@ async function start() {
     };
     (select.parentElement as HTMLElement).hidden = false;
   }
-  if (model) return load(single(model), model, model);
+  if (model && !requested) return load(single(model), model, model);
   if (requested && !chosen) return loadSet(requested);
   if (chosen) return loadSet(setUrl(chosen));
   return load(
